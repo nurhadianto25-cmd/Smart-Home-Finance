@@ -1,0 +1,37 @@
+{
+  "summary": "Backend-only regression pass for Smart Home Finance API. Executed 14 pytest cases against the EXTERNAL URL (EXPO_PUBLIC_BACKEND_URL). All 14 tests PASSED (100%). Coverage: auth (register/login/me + negative cases), transactions (CRUD + type filter), bills (create → toggle to lunas → delete), savings (CRUD), shopping (create/delete), education (child + items + cascade delete), dashboard summary (all 6-month cashflow + expense_by_category + upcoming_bills + savings + health_score), and AI insight (LLM path verified — returns rich Bahasa Indonesia analysis, e.g. 'Bulan September 2026, pemasukan Rp10.000.000 dan pengeluaran Rp7.000.000 ...'). Empty-data path also returns the correct Indonesian fallback message. No backend bugs found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/register", "issue": "Email is silently lowercased on server; response returns lowercased email while client submitted mixed-case. Not a bug per se, but frontend should be aware when displaying user profile."},
+      {"endpoint": "POST /api/auth/register", "issue": "Duplicate-email path relies on the unique index created at startup, but the pre-check (find_one) returns 400 first. If two concurrent registrations race, one will bubble a 500 from the Mongo duplicate-key exception. Not blocking for MVP."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Nothing blocking. Optionally wrap register in try/except to convert Mongo DuplicateKeyError into a clean 400 to close the race-condition window."
+  ],
+  "critical_code_review_comments": [
+    "server.py is a single 578-line file. Still readable, but if more resources are added, split into routers/ (auth, transactions, bills, savings, shopping, education, dashboard, insights).",
+    "Duplicate 'delete → return {ok: True}' and PUT patterns across 5 resources are prime candidates for a generic CRUD helper.",
+    "Emergent LLM key is hardcoded in backend/.env (expected for this platform); dashboard/insight endpoints correctly gate on Bearer auth."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "Each test run registers a fresh TEST_<uuid>@example.com user for isolation; no shared/seeded data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run: `pytest /app/backend/tests/backend_test.py -v`. Uses EXPO_PUBLIC_BACKEND_URL. Tests are self-contained (fresh user per session). pytest-xdist LoadScopeScheduling is enabled — do NOT rely on cross-class data (each class gets its own fixture on its worker). Dashboard test seeds its own transactions for that reason.",
+  "rca_of_issue": "N/A — no failures after test corrections. The 3 initial failures in the first run were test-script issues (email case-sensitive compare and pytest-xdist splitting fixtures across workers), not backend bugs. Fixed both in backend_test.py; final run is 14/14 green."
+}

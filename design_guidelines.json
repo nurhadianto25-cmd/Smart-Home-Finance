@@ -1,0 +1,189 @@
+{
+  "app_name": "Smart Home Finance",
+  "personality": "7 Dark-First Utility with 6 Glass / Luxe glowing surfaces",
+  "personality_one_liner": "A high-performance, neon-accented dark dashboard that blends live operational utility with premium, glowing glassmorphism.",
+  "color": {
+    "surface": "#0A0E1A",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#12182B",
+    "onSurfaceSecondary": "#FFFFFF",
+    "surfaceTertiary": "#1C243B",
+    "onSurfaceTertiary": "#FFFFFF",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#0A0E1A",
+    "brand": "#9B6BFF",
+    "brandPrimary": "#9B6BFF",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#3D7EFF",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#FF9D3D",
+    "onBrandTertiary": "#0A0E1A",
+    "success": "#10D96A",
+    "onSuccess": "#0A0E1A",
+    "warning": "#FF9D3D",
+    "onWarning": "#0A0E1A",
+    "error": "#FF4757",
+    "onError": "#FFFFFF",
+    "info": "#3D7EFF",
+    "onInfo": "#FFFFFF",
+    "border": "#2A3441",
+    "borderStrong": "#3D7EFF",
+    "divider": "#1C243B",
+    "muted": "#8B9DA5",
+    "onBrand": "#FFFFFF"
+  },
+  "typography": {
+    "displayFontFamily": "Space Grotesk",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use tight spacing for metric groupings and generous padding for distinct card boundaries. Never let content crowd the safe areas.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use heavy tint + blur for sticky headers and bottom tabs",
+      "Apply subtle glowing linear gradients to card borders or behind major metrics",
+      "Ensure text on glass has high-contrast white to maintain readability"
+    ],
+    "dont's": [
+      "Don't stack glass on top of glass",
+      "Don't blur dense data tables or lists of transactions",
+      "Don't rely on blur alone—always pair it with a dark translucent base (e.g., 80% opacity surfaceSecondary)"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Auth",
+      "purpose": "Log in or register with email/Google, featuring a deep neon branded hero background.",
+      "states": {
+        "loading": "Spinner centered on deep navy background.",
+        "empty": "N/A",
+        "error": "Error toast using #FF4757 surface with white text."
+      },
+      "layout": "Full-bleed background image with vertical dark gradient scrim overlay (transparent to #0A0E1A). Bottom 60% contains email/password inputs (surfaceTertiary) and neon purple primary button. Google Sign-In as secondary outline button."
+    },
+    {
+      "name": "Dashboard",
+      "purpose": "Provide a high-level summary of financial health, balances, and cashflow in a stacked mobile layout.",
+      "states": {
+        "loading": "Skeleton loaders for cards and charts.",
+        "empty": "Empty state illustration of a glowing 3D wallet with 'Tambahkan transaksi pertama Anda'.",
+        "error": "Card showing connection failure with retry button."
+      },
+      "layout": "Vertical scroll. Top: Welcome + Financial Health ring (glowing green/orange). Next: Pemasukan (Green) and Pengeluaran (Red) side-by-side or stacked summary cards. Middle: Cashflow Line Chart (Blue/Purple neon lines). Bottom: Horizontal scrolling Savings Jars (Tabungan) using glassmorphism cards."
+    },
+    {
+      "name": "Transaksi",
+      "purpose": "List and filter all income and expense transactions chronologically.",
+      "states": {
+        "loading": "List skeleton with chevron.",
+        "empty": "Illustration of an empty receipt list.",
+        "error": "Retry boundary."
+      },
+      "layout": "Sticky glass header with horizontal scrollable filter chips (Semua, Pemasukan, Pengeluaran). List rows grouped by Date. Each row has a brand-tinted icon circle, Title, Category, and positive/negative amount styled with success/error tokens. FAB at bottom right to add transaction."
+    },
+    {
+      "name": "Belanja",
+      "purpose": "Manage monthly shopping lists and budget realization.",
+      "states": {
+        "loading": "Progress bar skeletons.",
+        "empty": "Empty cart illustration.",
+        "error": "Retry boundary."
+      },
+      "layout": "Accessed via Drawer. Cards for each category (e.g., Groceries, Toiletries) featuring a progress bar (filling with brandSecondary/blue as budget gets used). Items listed below each category card."
+    },
+    {
+      "name": "Tagihan",
+      "purpose": "Track upcoming and paid bills grouped by status.",
+      "states": {
+        "loading": "List skeleton.",
+        "empty": "Illustration of no pending bills. 'Semua tagihan lunas!'",
+        "error": "Retry boundary."
+      },
+      "layout": "Tab view or segmented control for Status: Segera Jatuh Tempo, Belum Dibayar, Terlambat, Lunas. Cards with bill logo/icon, due date, amount, and a pill-shaped status badge."
+    },
+    {
+      "name": "Pendidikan",
+      "purpose": "Track education budgets per child (SPP, Uang Saku, etc.).",
+      "states": {
+        "loading": "Card skeletons.",
+        "empty": "Illustration of graduation cap.",
+        "error": "Retry boundary."
+      },
+      "layout": "Accessed via Drawer. Horizontal scroll of child profiles at the top. Below, a categorized list of expenses (SPP, Buku, Les) with amounts and progress vs allocated budget."
+    },
+    {
+      "name": "Tabungan",
+      "purpose": "Visualize savings goals via jar metaphors.",
+      "states": {
+        "loading": "Jar skeletons.",
+        "empty": "Illustration of empty glass jar.",
+        "error": "Retry boundary."
+      },
+      "layout": "Grid (2-col) of 'Jar' cards. Each card has an icon, Goal Name, Amount Saved / Target Amount, and a neon-filled progress ring or bar."
+    }
+  ],
+  "images": {
+    "auth_hero": {
+      "url": "https://images.unsplash.com/photo-1776875097847-49bd9bcf1eca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG5lb24lMjBkYXJrJTIwbmF2eSUyMGJhY2tncm91bmQlMjBtb2Rlcm58ZW58MHx8fHwxNzkwNjk0NTE1fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Abstract modern dark navy glowing background"
+    },
+    "empty_wallet": {
+      "url": "https://images.unsplash.com/photo-1642403711737-8e89f8d92b24?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHw0fHwzZCUyMGdsb3NzeSUyMGZpbmFuY2UlMjBpY29uJTIwd2FsbGV0JTIwY29pbiUyMGRhcmt8ZW58MHx8fHwxNzkwNjk0NTE2fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "3D Glossy wallet icon with coins on dark background"
+    }
+  },
+  "haptics": {
+    "button_press": "light",
+    "tab_switch": "light",
+    "transaction_add_success": "success",
+    "jar_goal_reached": "success",
+    "error_state": "error"
+  },
+  "instructions_to_main_agent": [
+    "Theme Rule: Enforce the 'Dark-First Utility' aesthetic explicitly. Use the deep navy #0A0E1A background base. Let the neon accents (success/error/brand) serve as high-contrast indicators for finance metrics.",
+    "Typography: Use Space Grotesk for large numeric amounts (e.g., Rp3.750.000) and headers to enhance the modern tech/dashboard vibe. Use Plus Jakarta Sans for all standard body text, labels, and lists to maintain high legibility.",
+    "Desktop-to-Mobile Adaptation: Convert the side-by-side desktop dashboard into a stacked mobile layout. Ensure the Financial Health and Saving Rate are positioned prominently at the top. Use horizontal scrolling for the Tabungan jars to save vertical space.",
+    "Glassmorphism Rule: Use expo-blur with a heavily tinted surfaceSecondary (#12182B) overlay for sticky headers, the bottom tab bar, and the Drawer menu. Ensure text readability with high-contrast white.",
+    "Cards & Borders: Give cards a surfaceSecondary background. For emphasis on key metric cards (like Financial Health or Total Saldo), apply a subtle glowing border utilizing the brandPrimary or brandSecondary colors with linear gradients.",
+    "Image Overlay: On the Auth screen, apply a gradient scrim over the auth_hero image from transparent at the top to solid #0A0E1A at the bottom so the login inputs are perfectly readable.",
+    "Use Phosphor icons consistently across all tabs and transaction list items, employing tinted circular backgrounds (brandTertiary at 15% opacity) to hold the icons in the list rows.",
+    "Ensure 'Drawer' navigation is properly configured within Expo Router to handle Belanja, Pendidikan, Laporan, Analisis, and Pengaturan, while Tabs handle the core features."
+  ]
+}
