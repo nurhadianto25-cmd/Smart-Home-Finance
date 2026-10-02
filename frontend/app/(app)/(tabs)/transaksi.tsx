@@ -106,6 +106,20 @@ export default function Transaksi() {
                   <Text style={[styles.rowAmount, { color: t.type === "income" ? colors.success : colors.error }]}>
                     {t.type === "income" ? "+" : "-"}{idr(t.amount)}
                   </Text>
+                  <Pressable
+                    onPress={() => router.push({
+                      pathname: "/(app)/add-transaction",
+                      params: {
+                        tx_id: t.tx_id, type: t.type, amount: String(t.amount),
+                        category: t.category, title: t.title, note: t.note || "",
+                        date: t.date, child_id: t.child_id || "",
+                      },
+                    })}
+                    style={styles.del}
+                    testID={`edit-${t.tx_id}`}
+                  >
+                    <Icon name="pencil" size={16} color={colors.info} />
+                  </Pressable>
                   <Pressable onPress={() => onDelete(t.tx_id)} style={styles.del} testID={`del-${t.tx_id}`}>
                     <Icon name="close" size={16} color={colors.error} />
                   </Pressable>
@@ -136,5 +150,5 @@ const styles = StyleSheet.create({
   rowTitle: { color: colors.onSurface, fontSize: 14, fontWeight: "700" },
   rowSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   rowAmount: { fontSize: 14, fontWeight: "800" },
-  del: { width: 30, height: 30, borderRadius: 15, backgroundColor: `${colors.error}22`, alignItems: "center", justifyContent: "center" },
+  del: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center", marginLeft: 6 },
 });

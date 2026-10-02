@@ -5,6 +5,7 @@ import Icon from "@react-native-vector-icons/material-design-icons";
 import { api, idr } from "@/src/api";
 import { colors, radius, spacing } from "@/src/theme";
 import { EmptyState, PillButton, PrimaryButton } from "@/src/components/ui";
+import { formatDateInput, isoToDisplay } from "@/src/utils/date";
 
 const STATUS_COLORS: Record<string, string> = {
   segera: colors.warning, belum: colors.error, terlambat: colors.error, lunas: colors.success, ditangguhkan: colors.muted,
@@ -19,13 +20,15 @@ const KINDS = [
   { k: "lainnya", label: "Lainnya", icon: "dots-horizontal", color: colors.muted },
 ];
 
+const emptyForm = { name: "", kind: "rutin", category: "Umum", amount: "", due_date_display: "", due_date_iso: "" as string | null, status: "belum", note: "" };
+
 export default function Tagihan() {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [refreshing, setRefreshing] = useState(false);
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: "", kind: "rutin", category: "Umum", amount: "", due_date: "", status: "belum", note: "" });
+  const [modal, setModal] = useState<{ open: boolean; edit?: any | null }>({ open: false, edit: null });
+  const [form, setForm] = useState<any>(emptyForm);
 
   const load = useCallback(async () => {
     try { setItems(await api<any[]>("/bills")); } catch {}
@@ -47,30 +50,47 @@ export default function Tagihan() {
   const paid = withDaysLeft.filter(b => b.status === "lunas").reduce((s, b) => s + b.amount, 0);
   const dueSoon = withDaysLeft.filter(b => b.status !== "lunas" && b.days_left >= 0 && b.days_left <= 7).length;
 
+  const openAdd = () => { setForm(emptyForm); setModal({ open: true, edit: null }); };
+  const openEdit = (b: any) => {
+    setForm({
+      name: b.name, kind: b.kind, category: b.category, amount: String(b.amount),
+      due_date_display: isoToDisplay(b.due_date), due_date_iso: (b.due_date || "").slice(0, 10),
+      status: b.status === "lunas" && !b.auto_paid ? "lunas" : "belum",
+      note: b.note || "",
+    });
+    setModal({ open: true, edit: b });
+  };
+  const onDateChange = (t: string) => {
+    const { display, iso } = formatDateInput(t);
+    setForm((f: any) => ({ ...f, due_date_display: display, due_date_iso: iso }));
+  };
   const submit = async () => {
-    if (!form.name || !form.amount || !form.due_date) return;
+    if (!form.name || !form.amount || !form.due_date_iso) return;
+    const body = {
+      name: form.name, kind: form.kind, category: form.category,
+      amount: parseFloat(form.amount), due_date: form.due_date_iso,
+      status: form.status, note: form.note,
+    };
     try {
-      await api("/bills", { method: "POST", body: JSON.stringify({
-        name: form.name, kind: form.kind, category: form.category,
-        amount: parseFloat(form.amount), due_date: form.due_date, status: form.status, note: form.note,
-      }) });
-      setModal(false);
-      setForm({ name: "", kind: "rutin", category: "Umum", amount: "", due_date: "", status: "belum", note: "" });
+      if (modal.edit) {
+        await api(`/bills/${modal.edit.bill_id}`, { method: "PUT", body: JSON.stringify(body) });
+      } else {
+        await api("/bills", { method: "POST", body: JSON.stringify(body) });
+      }
+      setModal({ open: false });
+      setForm(emptyForm);
       load();
     } catch {}
   };
 
-  const toggleLunas = async (b: any) => {
-    try { await api(`/bills/${b.bill_id}`, { method: "PUT", body: JSON.stringify({ ...b, status: b.status === "lunas" ? "belum" : "lunas" }) }); load(); } catch {}
-  };
   const del = async (b: any) => { try { await api(`/bills/${b.bill_id}`, { method: "DELETE" }); load(); } catch {} };
 
   const grouped: Record<string, any[]> = {};
   for (const b of filtered) {
-    const key = b.status === "lunas" ? "lunas" : b.status === "terlambat" || b.days_left < 0 ? "terlambat" : b.days_left <= 14 ? "segera" : "belum";
+    const key = b.status;
     (grouped[key] ||= []).push(b);
   }
-  const order = ["segera", "belum", "terlambat", "lunas"];
+  const order = ["segera", "belum", "terlambat", "lunas", "ditangguhkan"];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
@@ -81,9 +101,9 @@ export default function Tagihan() {
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Tagihan & Cicilan</Text>
-            <Text style={styles.sub}>Kelola semua kewajiban Anda</Text>
+            <Text style={styles.sub}>Otomatis lunas saat transaksi cocok diinput</Text>
           </View>
-          <Pressable testID="add-bill" onPress={() => setModal(true)} style={styles.fab}>
+          <Pressable testID="add-bill" onPress={openAdd} style={styles.fab}>
             <Icon name="plus" size={22} color={colors.onBrandPrimary} />
           </Pressable>
         </View>
@@ -119,17 +139,25 @@ export default function Tagihan() {
                   <Icon name={(KINDS.find(x => x.k === b.kind)?.icon || "receipt") as any} size={20} color={STATUS_COLORS[k]} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>{b.name}</Text>
-                  <Text style={styles.rowSub}>{b.category} • Jatuh tempo {new Date(b.due_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>{b.name}</Text>
+                    {b.auto_paid ? (
+                      <View style={styles.autoBadge}>
+                        <Icon name="flash" size={10} color={colors.success} />
+                        <Text style={styles.autoBadgeText}>Auto</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.rowSub}>{b.category} • {isoToDisplay(b.due_date)}</Text>
                 </View>
                 <View style={{ alignItems: "flex-end", gap: 4 }}>
                   <Text style={styles.rowAmount}>{idr(b.amount)}</Text>
                   <View style={{ flexDirection: "row", gap: 6 }}>
-                    <Pressable onPress={() => toggleLunas(b)} style={styles.iconBtn} testID={`pay-${b.bill_id}`}>
-                      <Icon name={b.status === "lunas" ? "close-circle" : "check-circle"} size={18} color={b.status === "lunas" ? colors.muted : colors.success} />
+                    <Pressable onPress={() => openEdit(b)} style={styles.iconBtn} testID={`edit-bill-${b.bill_id}`}>
+                      <Icon name="pencil" size={16} color={colors.info} />
                     </Pressable>
                     <Pressable onPress={() => del(b)} style={styles.iconBtn} testID={`del-bill-${b.bill_id}`}>
-                      <Icon name="trash-can-outline" size={18} color={colors.error} />
+                      <Icon name="trash-can-outline" size={16} color={colors.error} />
                     </Pressable>
                   </View>
                 </View>
@@ -139,29 +167,38 @@ export default function Tagihan() {
         ) : null)}
       </ScrollView>
 
-      <Modal visible={modal} animationType="slide" transparent onRequestClose={() => setModal(false)}>
+      <Modal visible={modal.open} animationType="slide" transparent onRequestClose={() => setModal({ open: false })}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalBg}>
           <View style={styles.modal}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <Text style={{ color: colors.onSurface, fontSize: 18, fontWeight: "800" }}>Tambah Kewajiban</Text>
-              <Pressable onPress={() => setModal(false)} testID="close-bill-modal"><Icon name="close" size={22} color={colors.onSurface} /></Pressable>
+              <Text style={{ color: colors.onSurface, fontSize: 18, fontWeight: "800" }}>{modal.edit ? "Edit Kewajiban" : "Tambah Kewajiban"}</Text>
+              <Pressable onPress={() => setModal({ open: false })} testID="close-bill-modal"><Icon name="close" size={22} color={colors.onSurface} /></Pressable>
             </View>
             <ScrollView contentContainerStyle={{ gap: 10 }} keyboardShouldPersistTaps="handled">
               <Text style={styles.label}>Jenis</Text>
               <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
                 {KINDS.map(k => (
-                  <PillButton key={k.k} label={k.label} active={form.kind === k.k} onPress={() => setForm(f => ({ ...f, kind: k.k }))} />
+                  <PillButton key={k.k} label={k.label} active={form.kind === k.k} onPress={() => setForm((f: any) => ({ ...f, kind: k.k }))} />
                 ))}
               </View>
               <Text style={styles.label}>Nama</Text>
-              <TextInput testID="bill-name" style={styles.input} value={form.name} onChangeText={t => setForm(f => ({ ...f, name: t }))} placeholder="cth. Listrik PLN" placeholderTextColor={colors.muted} />
-              <Text style={styles.label}>Kategori</Text>
-              <TextInput style={styles.input} value={form.category} onChangeText={t => setForm(f => ({ ...f, category: t }))} placeholder="Umum" placeholderTextColor={colors.muted} />
+              <TextInput testID="bill-name" style={styles.input} value={form.name} onChangeText={t => setForm((f: any) => ({ ...f, name: t }))} placeholder="cth. Listrik PLN" placeholderTextColor={colors.muted} />
+              <Text style={styles.label}>Kategori (samakan dgn kategori transaksi agar auto-lunas)</Text>
+              <TextInput style={styles.input} value={form.category} onChangeText={t => setForm((f: any) => ({ ...f, category: t }))} placeholder="Tagihan" placeholderTextColor={colors.muted} />
               <Text style={styles.label}>Nominal (Rp)</Text>
-              <TextInput testID="bill-amount" style={styles.input} value={form.amount} onChangeText={t => setForm(f => ({ ...f, amount: t.replace(/[^0-9]/g, "") }))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.muted} />
-              <Text style={styles.label}>Jatuh Tempo (YYYY-MM-DD)</Text>
-              <TextInput testID="bill-date" style={styles.input} value={form.due_date} onChangeText={t => setForm(f => ({ ...f, due_date: t }))} placeholder="2026-09-15" placeholderTextColor={colors.muted} />
-              <PrimaryButton label="Simpan" onPress={submit} testID="bill-submit" />
+              <TextInput testID="bill-amount" style={styles.input} value={form.amount} onChangeText={t => setForm((f: any) => ({ ...f, amount: t.replace(/[^0-9]/g, "") }))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.muted} />
+              <Text style={styles.label}>Jatuh Tempo (ketik angka saja)</Text>
+              <TextInput
+                testID="bill-date"
+                style={styles.input}
+                value={form.due_date_display}
+                onChangeText={onDateChange}
+                keyboardType="numeric"
+                maxLength={10}
+                placeholder="DD-MM-YYYY"
+                placeholderTextColor={colors.muted}
+              />
+              <PrimaryButton label={modal.edit ? "Simpan Perubahan" : "Simpan"} onPress={submit} testID="bill-submit" />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -195,10 +232,12 @@ const styles = StyleSheet.create({
   countText: { color: colors.onSurface, fontSize: 11, fontWeight: "700" },
   row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: colors.border },
   rowIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  rowTitle: { color: colors.onSurface, fontSize: 14, fontWeight: "700" },
+  rowTitle: { color: colors.onSurface, fontSize: 14, fontWeight: "700", flexShrink: 1 },
   rowSub: { color: colors.muted, fontSize: 11, marginTop: 2 },
   rowAmount: { color: colors.onSurface, fontSize: 14, fontWeight: "800" },
   iconBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
+  autoBadge: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 6, height: 16, borderRadius: 8, backgroundColor: `${colors.success}22` },
+  autoBadgeText: { color: colors.success, fontSize: 9, fontWeight: "800" },
   modalBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, maxHeight: "88%", borderWidth: 1, borderColor: colors.border },
   label: { color: colors.muted, fontSize: 11, fontWeight: "700", textTransform: "uppercase", marginTop: 4 },

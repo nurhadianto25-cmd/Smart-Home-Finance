@@ -43,10 +43,10 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="tabungan"
+        name="pendidikan"
         options={{
-          title: "Tabungan",
-          tabBarIcon: ({ color, size }) => <Icon name="piggy-bank" size={size} color={color} />,
+          title: "Pendidikan",
+          tabBarIcon: ({ color, size }) => <Icon name="school" size={size} color={color} />,
         }}
       />
     </Tabs>

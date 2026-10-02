@@ -6,7 +6,7 @@ import { api, clearToken, getToken, setMemToken, setToken } from "./api";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type User = { user_id: string; email: string; name: string; picture?: string | null };
+type User = { user_id: string; email: string; name: string; picture?: string | null; whatsapp?: string | null };
 type Ctx = {
   user: User | null;
   loading: boolean;
@@ -14,6 +14,8 @@ type Ctx = {
   registerEmail: (name: string, email: string, password: string) => Promise<void>;
   loginGoogle: () => Promise<void>;
   logout: () => Promise<void>;
+  refreshMe: () => Promise<void>;
+  updateProfile: (patch: { name?: string; whatsapp?: string; picture?: string }) => Promise<void>;
 };
 
 const AuthCtx = createContext<Ctx | null>(null);
@@ -167,8 +169,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshMe = useCallback(async () => {
+    try {
+      const me = await api<User>("/auth/me");
+      setUser(me);
+    } catch {}
+  }, []);
+
+  const updateProfile = useCallback(async (patch: { name?: string; whatsapp?: string; picture?: string }) => {
+    const me = await api<User>("/auth/me", { method: "PATCH", body: JSON.stringify(patch) });
+    setUser(me);
+  }, []);
+
   return (
-    <AuthCtx.Provider value={{ user, loading, loginEmail, registerEmail, loginGoogle, logout }}>
+    <AuthCtx.Provider value={{ user, loading, loginEmail, registerEmail, loginGoogle, logout, refreshMe, updateProfile }}>
       {children}
     </AuthCtx.Provider>
   );

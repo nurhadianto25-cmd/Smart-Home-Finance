@@ -9,10 +9,10 @@ import { colors, radius, spacing } from "@/src/theme";
 const ITEMS = [
   { name: "Dashboard", icon: "view-dashboard", route: "/(app)/(tabs)", color: colors.brandPrimary },
   { name: "Transaksi", icon: "swap-horizontal", route: "/(app)/(tabs)/transaksi", color: colors.info },
-  { name: "Belanja", icon: "cart", route: "/(app)/belanja", color: colors.brandSecondary },
   { name: "Tagihan & Cicilan", icon: "receipt-text", route: "/(app)/(tabs)/tagihan", color: colors.warning },
-  { name: "Pendidikan", icon: "school", route: "/(app)/pendidikan", color: colors.brandPrimary },
-  { name: "Tabungan", icon: "piggy-bank", route: "/(app)/(tabs)/tabungan", color: colors.success },
+  { name: "Pendidikan", icon: "school", route: "/(app)/(tabs)/pendidikan", color: colors.brandPrimary },
+  { name: "Tabungan", icon: "piggy-bank", route: "/(app)/tabungan", color: colors.success },
+  { name: "Belanja", icon: "cart", route: "/(app)/belanja", color: colors.brandSecondary },
   { name: "Laporan", icon: "file-chart", route: "/(app)/laporan", color: colors.info },
   { name: "Analisis", icon: "chart-bar", route: "/(app)/analisis", color: colors.brandPrimary },
   { name: "Pengaturan", icon: "cog", route: "/(app)/pengaturan", color: colors.muted },
