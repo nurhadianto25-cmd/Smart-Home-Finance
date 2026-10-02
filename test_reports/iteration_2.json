@@ -1,0 +1,42 @@
+{
+  "summary": "Full regression (backend + frontend) for the 4 new features. BACKEND: 8/8 new pytest cases PASSED (plus the 14 existing from iteration_1 still green). Verified cumulative_balance/opening_balance across months (May 5M income + June 1.2M expense + July 500k income -> May:5M/0, June:3.8M/5M, Oct:4.3M/4.3M), /report/text|pdf|excel with start=&end= returns full-range data (text contains '2030-05-01 s/d 2030-07-31', PDF %PDF header, XLSX PK zip header), PATCH /auth/me stores + returns the data-URI picture and persists via GET /auth/me. Note: reportlab and openpyxl were missing from backend/requirements.txt causing report/pdf and report/excel to 500 — installed them (reportlab==5.0.1, openpyxl==3.1.5) and added to requirements.txt; backend restarted and both endpoints now 200. FRONTEND: Playwright on mobile viewport 390x844 — login (setup_test@example.com/test1234) works; dashboard shows avatar (dashboard-avatar), RUNNING BALANCE=Rp3.800.000, OPENING BALANCE=Rp3.800.000, NET BALANCE THIS MONTH=Rp0; tapping dashboard-avatar opens /pengaturan; toggling theme-light + lang-en + currency-usd instantly re-themed, re-translated and reformatted money ($237.50 matches 3.800.000/16000 — expected). After full page reload the preference persisted ($ still shown). Reports screen: period-month/period-custom switch works, report-start/report-end accept DD-MM-YYYY and are formatted correctly, report-pdf/report-excel/report-whatsapp all present and tappable; PDF button triggered no error. Known harmless 'transform-origin' react-native-svg DOM warning observed (ignored per request).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "requirements.txt", "issue": "reportlab and openpyxl were imported inside /api/report/pdf and /api/report/excel but missing from backend/requirements.txt — endpoints returned 500 'ModuleNotFoundError'. Fixed by installing and appending to requirements.txt."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "(app)/_layout tabs config", "issue": "Expo Router warns: '[Layout children]: No route named \"pendidikan\" exists in nested children: [add-transaction, analisis, belanja, laporan, menu, pengaturan, tabungan, (tabs)]'. A <Tabs.Screen name=\"pendidikan\" /> (or similar) references a route that no longer exists. Reference: /app/frontend/app/(app)/_layout.tsx."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/new_features.xml"
+  ],
+  "action_items": [
+    "Remove the stale 'pendidikan' entry from (app)/_layout.tsx (or recreate the pendidikan screen) to silence the Expo Router warning.",
+    "Keep reportlab/openpyxl pinned in requirements.txt (already appended) so fresh container builds don't regress /report/pdf and /report/excel."
+  ],
+  "critical_code_review_comments": [
+    "server.py now 924 lines — report helpers (_report_data, _report_data_range, _resolve_report, _fmt_idr) and the pdf/excel builders are prime candidates to split into backend/routers/reports.py.",
+    "_report_data_range loads up to 5000 transactions client-side and filters in Python; for large users switch to a Mongo range query on date string (works because date is stored as ISO 'YYYY-MM-DD...').",
+    "Dashboard cumulative query uses {month: {$lte: month}} on a string field — correct because month is formatted 'YYYY-MM' (lexicographic order == chronological order). Good.",
+    "Currency conversion is purely a display concern in the frontend (prefs.tsx /src/api.ts idr formatter) — backend keeps IDR as source of truth. Clean separation."
+  ],
+  "updated_files": [
+    "/app/backend/requirements.txt",
+    "/app/backend/tests/test_new_features.py"
+  ],
+  "success_rate": {"backend": "100% (22/22 across both test files)", "frontend": "100% of in-scope UI flows (login, dashboard running balance, avatar->settings, theme/lang/currency live + persist, reports period+range, pdf/excel/whatsapp buttons present)"},
+  "seed_data_creation": "test_new_features.py registers a fresh TEST_<uuid> user and inserts 3 dated transactions in year 2030 to isolate cumulative-balance math from pre-existing data; data is scoped to that disposable user so no cleanup needed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run both suites: `pytest /app/backend/tests/ -v`. Reports endpoints need reportlab+openpyxl installed (now in requirements.txt). Frontend testIDs to rely on: login-email-input, login-password-input, login-submit-button, dashboard-avatar, dashboard-user-photo, dashboard-balance, dashboard-opening, dashboard-net-month, theme-dark/theme-light, lang-id/lang-en, currency-idr/currency-usd, back-settings, period-month/period-custom, report-start, report-end, report-pdf, report-excel, report-whatsapp. Currency conversion rate is 1 USD = 16000 IDR, applied only at display.",
+  "rca_of_issue": "report/pdf + report/excel 500 RCA: both endpoints do a lazy `from reportlab...` and `from openpyxl import Workbook` inside the handler. Neither library was declared in backend/requirements.txt, so a fresh backend install lacked them. Repro: `curl -H 'Authorization: Bearer <token>' $EXPO_PUBLIC_BACKEND_URL/api/report/pdf` returned 500 with `ModuleNotFoundError: No module named 'reportlab'` in /var/log/supervisor/backend.err.log. Mitigation: `pip install reportlab openpyxl` and appended `reportlab==5.0.1` and `openpyxl==3.1.5` to requirements.txt, then `sudo supervisorctl restart backend`. Verified via pytest TestReportRange — all 5 range tests now green."
+}

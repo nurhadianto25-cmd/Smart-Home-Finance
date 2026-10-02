@@ -1,7 +1,7 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, Pressable } from "react-native";
 import Icon from "@react-native-vector-icons/material-design-icons";
-import { colors, radius, spacing } from "@/src/theme";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export function StatCard({
   label, value, icon, tone = "brand", delta, testID,
@@ -9,6 +9,8 @@ export function StatCard({
   label: string; value: string; icon: string; tone?: "success" | "error" | "info" | "brand" | "warning";
   delta?: string; testID?: string;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const tint = { success: colors.success, error: colors.error, info: colors.info, brand: colors.brandPrimary, warning: colors.warning }[tone];
   return (
     <View style={styles.statCard} testID={testID}>
@@ -23,10 +25,12 @@ export function StatCard({
 }
 
 export function Card({ children, style }: { children: React.ReactNode; style?: any }) {
+  const styles = useStyles();
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
 export function SectionHeader({ title, right }: { title: string; right?: React.ReactNode }) {
+  const styles = useStyles();
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -38,6 +42,7 @@ export function SectionHeader({ title, right }: { title: string; right?: React.R
 export function PillButton({
   label, active, onPress, testID,
 }: { label: string; active?: boolean; onPress: () => void; testID?: string }) {
+  const styles = useStyles();
   return (
     <Pressable
       testID={testID}
@@ -56,6 +61,8 @@ export function PillButton({
 export function PrimaryButton({
   label, onPress, disabled, testID, icon,
 }: { label: string; onPress: () => void; disabled?: boolean; testID?: string; icon?: string }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <Pressable
       testID={testID}
@@ -73,16 +80,21 @@ export function PrimaryButton({
   );
 }
 
-export function ProgressBar({ value, color = colors.success, height = 6 }: { value: number; color?: string; height?: number }) {
+export function ProgressBar({ value, color, height = 6 }: { value: number; color?: string; height?: number }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const col = color ?? colors.success;
   const pct = Math.max(0, Math.min(100, value));
   return (
     <View style={[styles.pbTrack, { height, borderRadius: height / 2 }]}>
-      <View style={{ height, width: `${pct}%`, backgroundColor: color, borderRadius: height / 2 }} />
+      <View style={{ height, width: `${pct}%`, backgroundColor: col, borderRadius: height / 2 }} />
     </View>
   );
 }
 
 export function EmptyState({ icon, title, hint }: { icon: string; title: string; hint?: string }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.empty}>
       <View style={styles.emptyIcon}>
@@ -94,7 +106,7 @@ export function EmptyState({ icon, title, hint }: { icon: string; title: string;
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   statCard: {
     backgroundColor: colors.surfaceSecondary,
     borderRadius: radius.lg,
@@ -153,4 +165,4 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { color: colors.onSurface, fontSize: 15, fontWeight: "700", textAlign: "center" },
   emptyHint: { color: colors.muted, fontSize: 13, textAlign: "center" },
-});
+}));

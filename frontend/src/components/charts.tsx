@@ -1,13 +1,14 @@
 import React from "react";
 import { View } from "react-native";
 import Svg, { Circle, G, Path, Line, Text as SvgText } from "react-native-svg";
-import { colors } from "@/src/theme";
+import { useTheme } from "@/src/theme";
 
 export function DonutChart({
   data,
   size = 160,
   thickness = 22,
 }: { data: { value: number; color: string }[]; size?: number; thickness?: number }) {
+  const { colors } = useTheme();
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
   const r = size / 2 - thickness / 2;
   const c = 2 * Math.PI * r;
@@ -45,9 +46,11 @@ export function ProgressRing({
   value,
   size = 130,
   thickness = 12,
-  color = colors.success,
+  color,
   bg,
 }: { value: number; size?: number; thickness?: number; color?: string; bg?: string }) {
+  const { colors } = useTheme();
+  const col = color ?? colors.success;
   const pct = Math.max(0, Math.min(100, value));
   const r = size / 2 - thickness / 2;
   const c = 2 * Math.PI * r;
@@ -60,7 +63,7 @@ export function ProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={color}
+          stroke={col}
           strokeWidth={thickness}
           strokeDasharray={`${len} ${c - len}`}
           strokeLinecap="round"
@@ -78,6 +81,7 @@ export function LineDualChart({
   width = 320,
   height = 160,
 }: { income: number[]; expense: number[]; labels: string[]; width?: number; height?: number }) {
+  const { colors } = useTheme();
   const pad = { l: 28, r: 12, t: 14, b: 24 };
   const w = width - pad.l - pad.r;
   const h = height - pad.t - pad.b;

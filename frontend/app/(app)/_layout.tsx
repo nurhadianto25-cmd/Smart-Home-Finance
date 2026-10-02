@@ -5,7 +5,6 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="menu" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="belanja" />
-      <Stack.Screen name="pendidikan" />
       <Stack.Screen name="laporan" />
       <Stack.Screen name="analisis" />
       <Stack.Screen name="pengaturan" />

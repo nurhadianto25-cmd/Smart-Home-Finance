@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
 import * as ImagePicker from "expo-image-picker";
 import { api, idr } from "@/src/api";
-import { colors, radius, spacing } from "@/src/theme";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Card, EmptyState, PillButton, PrimaryButton, SectionHeader } from "@/src/components/ui";
 
 type Child = { child_id: string; name: string; school: string; grade: string; photo_url?: string | null };
@@ -16,6 +16,8 @@ function monthKey(d = new Date()) { return `${d.getFullYear()}-${String(d.getMon
 
 export default function Pendidikan() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [children, setChildren] = useState<Child[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [summary, setSummary] = useState<any>(null);
@@ -350,6 +352,7 @@ function statusIcon(s: string) {
 }
 
 function Mini({ label, value, color }: any) {
+  const { colors } = useTheme();
   return (
     <View>
       <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>{label}</Text>
@@ -358,7 +361,7 @@ function Mini({ label, value, color }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   title: { color: colors.onSurface, fontSize: 24, fontWeight: "800" },
   sub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   heroLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
@@ -394,4 +397,4 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.surfaceTertiary, color: colors.onSurface, borderRadius: radius.md, paddingHorizontal: 14, height: 46, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
   photoPicker: { alignSelf: "center", marginBottom: 8 },
   photoEmpty: { width: 96, height: 96, borderRadius: 48, backgroundColor: `${colors.brandPrimary}22`, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: `${colors.brandPrimary}55`, borderStyle: "dashed" },
-});
+}));

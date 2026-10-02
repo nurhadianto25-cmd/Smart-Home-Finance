@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
-import { LogBox, View, ActivityIndicator, StyleSheet } from "react-native";
+import { LogBox, View, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -10,12 +10,14 @@ import { StatusBar } from "expo-status-bar";
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { queryClient } from "@/src/query-client";
 import { AuthProvider, useAuth } from "@/src/auth";
-import { colors } from "@/src/theme";
+import { PrefsProvider } from "@/src/prefs";
+import { useTheme } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
 
 function AuthGate() {
   const { user, loading } = useAuth();
+  const { colors } = useTheme();
   const segments = useSegments();
   const router = useRouter();
 
@@ -31,7 +33,7 @@ function AuthGate() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
         <ActivityIndicator size="large" color={colors.brandPrimary} />
       </View>
     );
@@ -41,25 +43,31 @@ function AuthGate() {
   );
 }
 
+function ThemedRoot() {
+  const { colors, scheme } = useTheme();
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.surface }}>
+      <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+      <AuthGate />
+    </GestureHandlerRootView>
+  );
+}
+
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.surface }}>
-        <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
-            <KeyboardProvider>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <KeyboardProvider>
+            <PrefsProvider>
               <AuthProvider>
-                <StatusBar style="light" />
-                <AuthGate />
+                <ThemedRoot />
               </AuthProvider>
-            </KeyboardProvider>
-          </QueryClientProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
+            </PrefsProvider>
+          </KeyboardProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-});

@@ -1,17 +1,21 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, TextInput, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/src/auth";
-import { colors, radius, spacing } from "@/src/theme";
+import { usePrefs } from "@/src/prefs";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Card, PrimaryButton, SectionHeader } from "@/src/components/ui";
 
 export default function Pengaturan() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout, updateProfile } = useAuth();
+  const { colors } = useTheme();
+  const { t, scheme, lang, currency, setScheme, setLang, setCurrency } = usePrefs();
+  const styles = useStyles();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name || "");
   const [waRaw, setWaRaw] = useState((user?.whatsapp || "").replace(/\D/g, ""));
@@ -23,7 +27,7 @@ export default function Pengaturan() {
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setErr("Izin akses foto ditolak. Buka Pengaturan HP untuk mengizinkan.");
+      setErr(t("photoDenied"));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -41,8 +45,8 @@ export default function Pengaturan() {
     try {
       await updateProfile({ name: name.trim() || undefined, whatsapp: waRaw, picture: picture || undefined });
       setEditing(false);
-      setOkMsg("Profil diperbarui");
-    } catch (e: any) { setErr(e.message || "Gagal simpan"); }
+      setOkMsg(t("profileUpdated"));
+    } catch (e: any) { setErr(e.message || t("saveFailed")); }
     finally { setBusy(false); }
   };
 
@@ -51,18 +55,18 @@ export default function Pengaturan() {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn} testID="back-settings"><Icon name="arrow-left" size={22} color={colors.onSurface} /></Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Pengaturan</Text>
-          <Text style={styles.sub}>Profil dan preferensi</Text>
+          <Text style={styles.title}>{t("settings")}</Text>
+          <Text style={styles.sub}>{t("settingsSub")}</Text>
         </View>
       </View>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + 24, gap: spacing.md }} keyboardShouldPersistTaps="handled">
         <Card>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm }}>
-            <SectionHeader title="Profil" />
+            <SectionHeader title={t("profile")} />
             {!editing ? (
               <Pressable testID="edit-profile-btn" onPress={() => setEditing(true)} style={styles.editBtn}>
                 <Icon name="pencil" size={14} color={colors.brandPrimary} />
-                <Text style={styles.editText}>Edit</Text>
+                <Text style={styles.editText}>{t("edit")}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -82,7 +86,7 @@ export default function Pengaturan() {
                   style={styles.input}
                   value={name}
                   onChangeText={setName}
-                  placeholder="Nama pengguna"
+                  placeholder={t("userNamePh")}
                   placeholderTextColor={colors.muted}
                 />
               ) : (
@@ -97,16 +101,16 @@ export default function Pengaturan() {
 
         <Card>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm }}>
-            <SectionHeader title="Kontak" />
+            <SectionHeader title={t("contact")} />
             {!editing ? (
               <Pressable testID="edit-contact-btn" onPress={() => setEditing(true)} style={styles.editBtn}>
                 <Icon name="pencil" size={14} color={colors.brandPrimary} />
-                <Text style={styles.editText}>Edit</Text>
+                <Text style={styles.editText}>{t("edit")}</Text>
               </Pressable>
             ) : null}
           </View>
           <View style={{ gap: 6 }}>
-            <Text style={styles.lbl}>Nomor WhatsApp</Text>
+            <Text style={styles.lbl}>{t("whatsappNumber")}</Text>
             {editing ? (
               <TextInput
                 testID="settings-whatsapp-input"
@@ -118,9 +122,9 @@ export default function Pengaturan() {
                 keyboardType="phone-pad"
               />
             ) : (
-              <Text style={styles.valLarge}>{user?.whatsapp ? formatWa(user.whatsapp) : "Belum diatur"}</Text>
+              <Text style={styles.valLarge}>{user?.whatsapp ? formatWa(user.whatsapp) : t("notSet")}</Text>
             )}
-            <Text style={styles.hint}>Digunakan untuk mengirim laporan keuangan langsung ke WhatsApp Anda.</Text>
+            <Text style={styles.hint}>{t("whatsappHint")}</Text>
           </View>
         </Card>
 
@@ -129,10 +133,10 @@ export default function Pengaturan() {
             {err ? <Text style={{ color: colors.error, fontSize: 13 }}>{err}</Text> : null}
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable onPress={() => { setEditing(false); setName(user?.name || ""); setWaRaw((user?.whatsapp || "").replace(/\D/g, "")); setPicture(user?.picture || null); }} style={styles.cancelBtn} testID="cancel-edit">
-                <Text style={{ color: colors.onSurface, fontWeight: "700" }}>Batal</Text>
+                <Text style={{ color: colors.onSurface, fontWeight: "700" }}>{t("cancel")}</Text>
               </Pressable>
               <View style={{ flex: 1 }}>
-                <PrimaryButton label={busy ? "Menyimpan..." : "Simpan"} onPress={save} disabled={busy} testID="save-profile" />
+                <PrimaryButton label={busy ? t("saving") : t("save")} onPress={save} disabled={busy} testID="save-profile" />
               </View>
             </View>
           </View>
@@ -141,17 +145,57 @@ export default function Pengaturan() {
         {okMsg ? <Text style={{ color: colors.success, fontSize: 13 }}>{okMsg}</Text> : null}
 
         <Card>
-          <SectionHeader title="Aplikasi" />
-          <View style={{ gap: 8 }}>
-            <View style={styles.row}><Icon name="theme-light-dark" size={20} color={colors.brandPrimary} /><Text style={styles.rowText}>Tema</Text><Text style={styles.rowVal}>Gelap</Text></View>
-            <View style={styles.row}><Icon name="translate" size={20} color={colors.info} /><Text style={styles.rowText}>Bahasa</Text><Text style={styles.rowVal}>Indonesia</Text></View>
-            <View style={styles.row}><Icon name="currency-usd" size={20} color={colors.success} /><Text style={styles.rowText}>Mata Uang</Text><Text style={styles.rowVal}>IDR</Text></View>
+          <SectionHeader title={t("appSection")} />
+          <View style={{ gap: spacing.lg }}>
+            <View style={styles.prefBlock}>
+              <View style={styles.prefHead}>
+                <Icon name="theme-light-dark" size={20} color={colors.brandPrimary} />
+                <Text style={styles.prefTitle}>{t("theme")}</Text>
+              </View>
+              <View style={styles.segment}>
+                <SegBtn active={scheme === "dark"} icon="weather-night" label={t("dark")} onPress={() => setScheme("dark")} testID="theme-dark" />
+                <SegBtn active={scheme === "light"} icon="white-balance-sunny" label={t("light")} onPress={() => setScheme("light")} testID="theme-light" />
+              </View>
+            </View>
+
+            <View style={styles.prefBlock}>
+              <View style={styles.prefHead}>
+                <Icon name="translate" size={20} color={colors.info} />
+                <Text style={styles.prefTitle}>{t("language")}</Text>
+              </View>
+              <View style={styles.segment}>
+                <SegBtn active={lang === "id"} icon="flag" label={t("indonesian")} onPress={() => setLang("id")} testID="lang-id" />
+                <SegBtn active={lang === "en"} icon="flag-outline" label={t("english")} onPress={() => setLang("en")} testID="lang-en" />
+              </View>
+            </View>
+
+            <View style={styles.prefBlock}>
+              <View style={styles.prefHead}>
+                <Icon name="cash-multiple" size={20} color={colors.success} />
+                <Text style={styles.prefTitle}>{t("currency")}</Text>
+              </View>
+              <View style={styles.segment}>
+                <SegBtn active={currency === "IDR"} icon="currency-usd-off" label={t("rupiah")} onPress={() => setCurrency("IDR")} testID="currency-idr" />
+                <SegBtn active={currency === "USD"} icon="currency-usd" label={t("dollar")} onPress={() => setCurrency("USD")} testID="currency-usd" />
+              </View>
+            </View>
           </View>
         </Card>
 
-        <PrimaryButton label="Keluar" onPress={logout} icon="logout" testID="settings-logout" />
+        <PrimaryButton label={t("logout")} onPress={logout} icon="logout" testID="settings-logout" />
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+function SegBtn({ active, icon, label, onPress, testID }: { active: boolean; icon: string; label: string; onPress: () => void; testID?: string }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  return (
+    <Pressable testID={testID} onPress={onPress} style={[styles.segBtn, active && styles.segBtnActive]}>
+      <Icon name={icon as any} size={16} color={active ? colors.onBrandPrimary : colors.muted} />
+      <Text style={[styles.segText, active && styles.segTextActive]} numberOfLines={1}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -161,7 +205,7 @@ function formatWa(w: string) {
   return "+" + d.replace(/(\d{2})(\d{3,4})(\d{3,4})(\d+)?/, (_, a, b, c, e) => `${a} ${b} ${c}${e ? " " + e : ""}`).trim();
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   title: { color: colors.onSurface, fontSize: 20, fontWeight: "800" },
@@ -180,4 +224,12 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.divider },
   rowText: { color: colors.onSurface, fontSize: 14, fontWeight: "600", flex: 1 },
   rowVal: { color: colors.muted, fontSize: 13 },
-});
+  prefBlock: { gap: spacing.sm },
+  prefHead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  prefTitle: { color: colors.onSurface, fontSize: 14, fontWeight: "700" },
+  segment: { flexDirection: "row", gap: 8 },
+  segBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 44, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border },
+  segBtnActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
+  segText: { color: colors.muted, fontSize: 13, fontWeight: "700" },
+  segTextActive: { color: colors.onBrandPrimary },
+}));

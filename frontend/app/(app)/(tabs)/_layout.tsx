@@ -2,9 +2,12 @@ import React from "react";
 import { Platform } from "react-native";
 import { Tabs } from "expo-router";
 import Icon from "@react-native-vector-icons/material-design-icons";
-import { colors } from "@/src/theme";
+import { useTheme } from "@/src/theme";
+import { usePrefs } from "@/src/prefs";
 
 export default function TabsLayout() {
+  const { colors } = useTheme();
+  const { t } = usePrefs();
   return (
     <Tabs
       screenOptions={{
@@ -24,28 +27,28 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Dashboard",
+          title: t("dashboard"),
           tabBarIcon: ({ color, size }) => <Icon name="view-dashboard" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="transaksi"
         options={{
-          title: "Transaksi",
+          title: t("transactions"),
           tabBarIcon: ({ color, size }) => <Icon name="swap-horizontal" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="tagihan"
         options={{
-          title: "Tagihan",
+          title: t("bills"),
           tabBarIcon: ({ color, size }) => <Icon name="receipt-text" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="pendidikan"
         options={{
-          title: "Pendidikan",
+          title: t("education"),
           tabBarIcon: ({ color, size }) => <Icon name="school" size={size} color={color} />,
         }}
       />

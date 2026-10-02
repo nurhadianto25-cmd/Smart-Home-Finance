@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
 import { useRouter } from "expo-router";
 import { api, idr } from "@/src/api";
-import { colors, radius, spacing } from "@/src/theme";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Card, PrimaryButton, ProgressBar, SectionHeader } from "@/src/components/ui";
 
 export default function Analisis() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [summary, setSummary] = useState<any>(null);
   const [insight, setInsight] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -80,10 +82,10 @@ export default function Analisis() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   title: { color: colors.onSurface, fontSize: 20, fontWeight: "800" },
   sub: { color: colors.muted, fontSize: 12 },
   iconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: `${colors.brandPrimary}22`, borderWidth: 1, borderColor: `${colors.brandPrimary}55`, alignItems: "center", justifyContent: "center" },
-});
+}));

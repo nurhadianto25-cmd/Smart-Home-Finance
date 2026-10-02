@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { api, idr } from "@/src/api";
 import { useAuth } from "@/src/auth";
-import { colors, radius, spacing } from "@/src/theme";
+import { usePrefs } from "@/src/prefs";
+import { localeTag } from "@/src/i18n";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Card, EmptyState, ProgressBar, SectionHeader, StatCard } from "@/src/components/ui";
 import { DonutChart, LineDualChart, ProgressRing } from "@/src/components/charts";
 
@@ -15,6 +18,9 @@ export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { colors } = useTheme();
+  const { t } = usePrefs();
+  const styles = useStyles();
   const [data, setData] = useState<any>(null);
   const [insight, setInsight] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,7 +47,7 @@ export default function Dashboard() {
     setRefreshing(false);
   };
 
-  const today = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase();
+  const today = new Date().toLocaleDateString(localeTag(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase();
   const cats = (data?.expense_by_category || []).slice(0, 6);
   const cf = data?.cashflow || [];
 
@@ -52,10 +58,17 @@ export default function Dashboard() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brandPrimary} />}
       >
         <View style={styles.headerRow}>
+          <Pressable testID="dashboard-avatar" onPress={() => router.push("/(app)/pengaturan")} style={styles.avatarWrap}>
+            {user?.picture ? (
+              <Image source={{ uri: user.picture }} style={styles.avatarImg} contentFit="cover" testID="dashboard-user-photo" />
+            ) : (
+              <View style={styles.avatar}><Icon name="account" size={26} color={colors.onBrandPrimary} /></View>
+            )}
+          </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.dateText}>{today}</Text>
-            <Text style={styles.welcome}>Selamat datang,</Text>
-            <Text style={styles.name} testID="dashboard-user-name">{user?.name ?? "Pengguna"} 👋</Text>
+            <Text style={styles.welcome}>{t("welcome")}</Text>
+            <Text style={styles.name} testID="dashboard-user-name">{user?.name ?? t("user")} 👋</Text>
           </View>
           <Pressable testID="open-menu" onPress={() => router.push("/(app)/menu")} style={styles.iconBtn}>
             <Icon name="menu" size={22} color={colors.onSurface} />
@@ -65,26 +78,38 @@ export default function Dashboard() {
         {/* Balance hero */}
         <View style={styles.hero}>
           <View style={styles.heroIcon}><Icon name="wallet" size={26} color={colors.onBrandPrimary} /></View>
-          <Text style={styles.heroLabel}>FINANCIAL BALANCE</Text>
-          <Text style={[styles.heroAmount, { color: (data?.balance ?? 0) >= 0 ? colors.success : colors.error }]} testID="dashboard-balance">
-            {idr(data?.balance ?? 0)}
+          <Text style={styles.heroLabel}>{t("financialBalance")}</Text>
+          <Text style={[styles.heroAmount, { color: (data?.cumulative_balance ?? 0) >= 0 ? colors.success : colors.error }]} testID="dashboard-balance">
+            {idr(data?.cumulative_balance ?? 0)}
           </Text>
-          <Text style={styles.heroSub}>Saldo bersih bulan ini</Text>
+          <Text style={styles.heroSub}>{t("runningBalanceSub")}</Text>
+          <View style={styles.heroDivider} />
+          <View style={styles.heroRow}>
+            <View style={styles.heroCol}>
+              <Text style={styles.heroColLabel}>{t("openingBalance")}</Text>
+              <Text style={styles.heroColVal} testID="dashboard-opening">{idr(data?.opening_balance ?? 0)}</Text>
+            </View>
+            <View style={styles.heroColDiv} />
+            <View style={styles.heroCol}>
+              <Text style={styles.heroColLabel}>{t("netThisMonth")}</Text>
+              <Text style={[styles.heroColVal, { color: (data?.balance ?? 0) >= 0 ? colors.success : colors.error }]} testID="dashboard-net-month">{idr(data?.balance ?? 0)}</Text>
+            </View>
+          </View>
         </View>
 
         {/* Stats row */}
         <View style={{ flexDirection: "row", gap: spacing.md }}>
-          <StatCard testID="stat-income" label="Pemasukan" value={idr(data?.income ?? 0)} icon="arrow-down-bold-circle" tone="success" />
-          <StatCard testID="stat-expense" label="Pengeluaran" value={idr(data?.expense ?? 0)} icon="arrow-up-bold-circle" tone="error" />
+          <StatCard testID="stat-income" label={t("income")} value={idr(data?.income ?? 0)} icon="arrow-down-bold-circle" tone="success" />
+          <StatCard testID="stat-expense" label={t("expense")} value={idr(data?.expense ?? 0)} icon="arrow-up-bold-circle" tone="error" />
         </View>
         <View style={{ flexDirection: "row", gap: spacing.md }}>
-          <StatCard testID="stat-saving-rate" label="Saving Rate" value={`${data?.saving_rate ?? 0}%`} icon="chart-line-variant" tone="info" />
-          <StatCard testID="stat-tx" label="Transaksi" value={String(data?.tx_count ?? 0)} icon="format-list-bulleted" tone="brand" />
+          <StatCard testID="stat-saving-rate" label={t("savingRate")} value={`${data?.saving_rate ?? 0}%`} icon="chart-line-variant" tone="info" />
+          <StatCard testID="stat-tx" label={t("txCount")} value={String(data?.tx_count ?? 0)} icon="format-list-bulleted" tone="brand" />
         </View>
 
         {/* Financial Health */}
         <Card>
-          <SectionHeader title="Financial Health" />
+          <SectionHeader title={t("financialHealth")} />
           <View style={styles.healthRow}>
             <View style={{ alignItems: "center", justifyContent: "center" }}>
               <ProgressRing value={data?.health_score ?? 0} size={140} thickness={14} color={(data?.health_score ?? 0) >= 60 ? colors.success : (data?.health_score ?? 0) >= 30 ? colors.warning : colors.error} />
@@ -94,13 +119,13 @@ export default function Dashboard() {
               </View>
             </View>
             <View style={{ flex: 1, gap: 6 }}>
-              <Text style={styles.healthLabel}>Skor keuangan</Text>
+              <Text style={styles.healthLabel}>{t("scoreLabel")}</Text>
               <Text style={styles.healthDesc}>
                 {(data?.health_score ?? 0) >= 60
-                  ? "Keuangan Anda dalam kondisi sehat."
+                  ? t("healthGood")
                   : (data?.health_score ?? 0) >= 30
-                  ? "Perlu perhatian pada pengeluaran."
-                  : "Belum ada cukup data untuk skor."}
+                  ? t("healthWarn")
+                  : t("healthNone")}
               </Text>
             </View>
           </View>
@@ -108,9 +133,9 @@ export default function Dashboard() {
 
         {/* Expense distribution */}
         <Card>
-          <SectionHeader title="Distribusi Pengeluaran" />
+          <SectionHeader title={t("expenseDistribution")} />
           {cats.length === 0 ? (
-            <EmptyState icon="chart-donut" title="Belum ada pengeluaran" hint="Tambahkan transaksi pengeluaran untuk melihat distribusi." />
+            <EmptyState icon="chart-donut" title={t("noExpense")} hint={t("noExpenseHint")} />
           ) : (
             <View style={{ flexDirection: "row", gap: spacing.lg, alignItems: "center" }}>
               <DonutChart data={cats.map((c: any, i: number) => ({ value: c.amount, color: CAT_COLORS[i % CAT_COLORS.length] }))} />
@@ -129,7 +154,7 @@ export default function Dashboard() {
 
         {/* Cashflow */}
         <Card>
-          <SectionHeader title="Cash Flow" right={<Text style={styles.subLabel}>6 Bulan</Text>} />
+          <SectionHeader title={t("cashflow")} right={<Text style={styles.subLabel}>{t("sixMonths")}</Text>} />
           <View style={{ alignItems: "center" }}>
             <LineDualChart
               income={cf.map((c: any) => c.income)}
@@ -139,18 +164,18 @@ export default function Dashboard() {
             />
           </View>
           <View style={{ flexDirection: "row", gap: 16, justifyContent: "center", marginTop: 8 }}>
-            <View style={styles.legend}><View style={[styles.dot, { backgroundColor: colors.success }]} /><Text style={styles.legendText}>Pemasukan</Text></View>
-            <View style={styles.legend}><View style={[styles.dot, { backgroundColor: colors.error }]} /><Text style={styles.legendText}>Pengeluaran</Text></View>
+            <View style={styles.legend}><View style={[styles.dot, { backgroundColor: colors.success }]} /><Text style={styles.legendText}>{t("income")}</Text></View>
+            <View style={styles.legend}><View style={[styles.dot, { backgroundColor: colors.error }]} /><Text style={styles.legendText}>{t("expense")}</Text></View>
           </View>
         </Card>
 
         {/* Upcoming bills */}
         <Card>
-          <SectionHeader title="Pembayaran Terdekat" right={
-            <Pressable onPress={() => router.push("/(app)/(tabs)/tagihan")} testID="see-all-bills"><Text style={styles.subLabel}>Lihat Semua ›</Text></Pressable>
+          <SectionHeader title={t("upcomingPayments")} right={
+            <Pressable onPress={() => router.push("/(app)/(tabs)/tagihan")} testID="see-all-bills"><Text style={styles.subLabel}>{t("seeAll")}</Text></Pressable>
           }/>
           {(data?.upcoming_bills || []).length === 0 ? (
-            <EmptyState icon="calendar-check" title="Tidak ada tagihan mendatang" />
+            <EmptyState icon="calendar-check" title={t("noUpcoming")} />
           ) : (
             <View style={{ gap: spacing.sm }}>
               {(data?.upcoming_bills || []).map((b: any) => (
@@ -160,7 +185,7 @@ export default function Dashboard() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.billName}>{b.name}</Text>
-                    <Text style={styles.billDate}>{b.days_left >= 0 ? `${b.days_left} hari lagi` : `Terlambat ${Math.abs(b.days_left)} hari`}</Text>
+                    <Text style={styles.billDate}>{b.days_left >= 0 ? `${b.days_left} ${t("daysLeft")}` : `${t("overdue")} ${Math.abs(b.days_left)} ${t("days")}`}</Text>
                   </View>
                   <Text style={[styles.billAmount, { color: b.days_left < 0 ? colors.error : colors.onSurface }]}>{idr(b.amount)}</Text>
                 </View>
@@ -171,11 +196,11 @@ export default function Dashboard() {
 
         {/* Savings goals */}
         <Card>
-          <SectionHeader title="Target Tabungan" right={
-            <Pressable onPress={() => router.push("/(app)/(tabs)/tabungan")} testID="see-all-savings"><Text style={styles.subLabel}>Lihat Semua ›</Text></Pressable>
+          <SectionHeader title={t("savingsTarget")} right={
+            <Pressable onPress={() => router.push("/(app)/(tabs)/tabungan")} testID="see-all-savings"><Text style={styles.subLabel}>{t("seeAll")}</Text></Pressable>
           }/>
           {(data?.savings || []).length === 0 ? (
-            <EmptyState icon="piggy-bank" title="Belum ada target tabungan" hint="Buat target menabung dari menu Tabungan." />
+            <EmptyState icon="piggy-bank" title={t("noSavings")} hint={t("noSavingsHint")} />
           ) : (
             <View style={{ gap: spacing.md }}>
               {(data?.savings || []).slice(0, 3).map((g: any) => {
@@ -201,24 +226,27 @@ export default function Dashboard() {
             <View style={[styles.billIcon, { backgroundColor: `${colors.brandPrimary}22`, borderColor: `${colors.brandPrimary}55` }]}>
               <Icon name="lightbulb-on" size={18} color={colors.brandPrimary} />
             </View>
-            <Text style={{ color: colors.onSurface, fontWeight: "800", fontSize: 15 }}>Financial Insight</Text>
+            <Text style={{ color: colors.onSurface, fontWeight: "800", fontSize: 15 }}>{t("financialInsight")}</Text>
           </View>
           <Text style={{ color: colors.muted, lineHeight: 20 }} testID="dashboard-insight">
-            {insight ?? "Menganalisis data keuangan Anda..."}
+            {insight ?? t("analyzing")}
           </Text>
         </Card>
 
         <Pressable onPress={logout} style={styles.logoutBtn} testID="dashboard-logout">
           <Icon name="logout" size={18} color={colors.error} />
-          <Text style={{ color: colors.error, fontWeight: "700" }}>Keluar</Text>
+          <Text style={{ color: colors.error, fontWeight: "700" }}>{t("logout")}</Text>
         </Pressable>
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   headerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  avatarWrap: { width: 44, height: 44 },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  avatarImg: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceTertiary },
   dateText: { color: colors.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
   welcome: { color: colors.muted, fontSize: 13, marginTop: 2 },
   name: { color: colors.onSurface, fontSize: 22, fontWeight: "800" },
@@ -231,6 +259,12 @@ const styles = StyleSheet.create({
   heroLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   heroAmount: { fontSize: 30, fontWeight: "800" },
   heroSub: { color: colors.muted, fontSize: 12 },
+  heroDivider: { height: 1, alignSelf: "stretch", backgroundColor: colors.border, marginTop: spacing.md },
+  heroRow: { flexDirection: "row", alignSelf: "stretch", marginTop: spacing.md },
+  heroCol: { flex: 1, alignItems: "center", gap: 4 },
+  heroColDiv: { width: 1, backgroundColor: colors.border },
+  heroColLabel: { color: colors.muted, fontSize: 10, fontWeight: "700", letterSpacing: 0.3, textTransform: "uppercase", textAlign: "center" },
+  heroColVal: { color: colors.onSurface, fontSize: 15, fontWeight: "800" },
   healthRow: { flexDirection: "row", gap: spacing.lg, alignItems: "center" },
   healthCenter: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
   healthScore: { color: colors.onSurface, fontSize: 34, fontWeight: "800" },
@@ -247,4 +281,4 @@ const styles = StyleSheet.create({
   billDate: { color: colors.muted, fontSize: 11 },
   billAmount: { fontSize: 14, fontWeight: "800" },
   logoutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: spacing.md, marginTop: spacing.md },
-});
+}));

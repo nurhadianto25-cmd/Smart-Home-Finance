@@ -1,6 +1,7 @@
-// Design tokens for Smart Home Finance. Dark-first neon aesthetic.
-import { useMemo } from "react";
-import { Appearance, StyleSheet, useColorScheme } from "react-native";
+// Design tokens for Smart Home Finance. Supports dark + light.
+import { useMemo, useSyncExternalStore } from "react";
+import { StyleSheet } from "react-native";
+import { getPrefs, getVersion, subscribePrefs } from "./store";
 
 export type ColorScheme = "light" | "dark";
 
@@ -40,22 +41,52 @@ const dark = {
 
 export type ThemeColors = typeof dark;
 
+const light: ThemeColors = {
+  surface: "#F4F6FB",
+  onSurface: "#0B1220",
+  surfaceSecondary: "#FFFFFF",
+  onSurfaceSecondary: "#0B1220",
+  surfaceTertiary: "#EAEEF6",
+  onSurfaceTertiary: "#0B1220",
+  surfaceInverse: "#0A0E1A",
+  onSurfaceInverse: "#FFFFFF",
+  muted: "#64748B",
+
+  brand: "#7C4DFF",
+  onBrand: "#FFFFFF",
+  brandPrimary: "#7C4DFF",
+  onBrandPrimary: "#FFFFFF",
+  brandSecondary: "#2563EB",
+  onBrandSecondary: "#FFFFFF",
+  brandTertiary: "#F97316",
+  onBrandTertiary: "#FFFFFF",
+
+  success: "#059669",
+  onSuccess: "#FFFFFF",
+  warning: "#D97706",
+  onWarning: "#FFFFFF",
+  error: "#DC2626",
+  onError: "#FFFFFF",
+  info: "#2563EB",
+  onInfo: "#FFFFFF",
+
+  border: "#D8DEEA",
+  borderStrong: "#2563EB",
+  divider: "#E6EAF2",
+};
+
 export const defaultScheme: ColorScheme = "dark";
 
-export const themes: { light?: ThemeColors; dark: ThemeColors } = { dark };
-
-export function setColorScheme(scheme: ColorScheme | null) {
-  Appearance.setColorScheme?.(scheme ?? "unspecified");
-}
-
-setColorScheme?.(defaultScheme);
+export const themes: { light: ThemeColors; dark: ThemeColors } = { dark, light };
 
 export function useTheme(): { scheme: ColorScheme; colors: ThemeColors } {
-  const system = useColorScheme();
-  const scheme: ColorScheme = system && (themes as any)[system] ? system : defaultScheme;
-  return { scheme, colors: (themes as any)[scheme] ?? themes.dark };
+  useSyncExternalStore(subscribePrefs, getVersion, getVersion);
+  const scheme: ColorScheme = getPrefs().scheme === "light" ? "light" : "dark";
+  return { scheme, colors: themes[scheme] };
 }
 
+// Static default (dark) — used only for module-level accent constants, never for
+// reactive surfaces/text. Reactive styling goes through useTheme()/makeStyles().
 export const colors = themes.dark;
 
 export function makeStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>>(
@@ -69,3 +100,4 @@ export function makeStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet.Name
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 };
 export const radius = { sm: 6, md: 12, lg: 20, pill: 999 };
+

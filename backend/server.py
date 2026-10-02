@@ -606,6 +606,16 @@ async def dashboard_summary(user=Depends(get_current_user), month: Optional[str]
     balance = income - expense
     saving_rate = round((balance / income) * 100, 1) if income > 0 else 0.0
 
+    # Cumulative (running) balance: all income - all expense up to and including this month.
+    cum_txs = await db.transactions.find(
+        {"user_id": user['user_id'], "month": {"$lte": month}},
+        {"_id": 0, "amount": 1, "type": 1},
+    ).to_list(100000)
+    cum_income = sum(t['amount'] for t in cum_txs if t['type'] == 'income')
+    cum_expense = sum(t['amount'] for t in cum_txs if t['type'] == 'expense')
+    cumulative_balance = cum_income - cum_expense
+    opening_balance = cumulative_balance - balance
+
     cat_map = {}
     for t in txs:
         if t['type'] == 'expense':
@@ -658,6 +668,7 @@ async def dashboard_summary(user=Depends(get_current_user), month: Optional[str]
 
     return {
         "month": month, "income": income, "expense": expense, "balance": balance,
+        "cumulative_balance": cumulative_balance, "opening_balance": opening_balance,
         "saving_rate": saving_rate, "health_score": score,
         "expense_by_category": categories, "cashflow": cashflow,
         "upcoming_bills": upcoming[:5], "savings": savings,
@@ -735,13 +746,38 @@ async def _report_data(user_id: str, month: str) -> dict:
         "bills": bills,
     }
 
-@api_router.get('/report/text')
-async def report_text(user=Depends(get_current_user), month: Optional[str] = None):
+async def _report_data_range(user_id: str, start: str, end: str) -> dict:
+    txs_all = await db.transactions.find({"user_id": user_id}, {"_id": 0}).sort([("date", 1)]).to_list(5000)
+    txs = [t for t in txs_all if start <= (t.get('date') or '')[:10] <= end]
+    income = sum(t['amount'] for t in txs if t['type'] == 'income')
+    expense = sum(t['amount'] for t in txs if t['type'] == 'expense')
+    cat_map = {}
+    for t in txs:
+        if t['type'] == 'expense':
+            cat_map[t['category']] = cat_map.get(t['category'], 0) + t['amount']
+    bills_raw = await db.bills.find({"user_id": user_id}, {"_id": 0, "user_id": 0}).to_list(500)
+    bills = await _decorate_bills(bills_raw, user_id)
+    return {
+        "month": f"{start} s/d {end}", "income": income, "expense": expense,
+        "balance": income - expense, "tx_count": len(txs),
+        "categories": sorted(cat_map.items(), key=lambda x: -x[1]),
+        "transactions": [{k: t.get(k) for k in ("date", "type", "title", "category", "amount")} for t in txs],
+        "bills": bills,
+    }
+
+async def _resolve_report(user_id: str, month: Optional[str], start: Optional[str], end: Optional[str]) -> dict:
+    if start and end:
+        return await _report_data_range(user_id, start, end)
     if not month:
         month = now_utc().strftime('%Y-%m')
-    d = await _report_data(user['user_id'], month)
+    return await _report_data(user_id, month)
+
+@api_router.get('/report/text')
+async def report_text(user=Depends(get_current_user), month: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    d = await _resolve_report(user['user_id'], month, start, end)
+    label = d['month']
     lines = [
-        f"📊 *LAPORAN KEUANGAN* — {month}",
+        f"📊 *LAPORAN KEUANGAN* — {label}",
         f"👤 {user.get('name', '')}",
         "",
         f"💰 Pemasukan: {_fmt_idr(d['income'])}",
@@ -765,20 +801,19 @@ async def report_text(user=Depends(get_current_user), month: Optional[str] = Non
     return {"text": "\n".join(lines)}
 
 @api_router.get('/report/pdf')
-async def report_pdf(user=Depends(get_current_user), month: Optional[str] = None):
-    if not month:
-        month = now_utc().strftime('%Y-%m')
-    d = await _report_data(user['user_id'], month)
+async def report_pdf(user=Depends(get_current_user), month: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    d = await _resolve_report(user['user_id'], month, start, end)
+    label = d['month']
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors as rlcolors
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, title=f"Laporan {month}")
+    doc = SimpleDocTemplate(buf, pagesize=A4, title=f"Laporan {label}")
     styles = getSampleStyleSheet()
     h = ParagraphStyle('h', parent=styles['Heading1'], textColor=rlcolors.HexColor('#0F172A'))
     story = [
-        Paragraph(f"Laporan Keuangan — {month}", h),
+        Paragraph(f"Laporan Keuangan — {label}", h),
         Paragraph(f"Nama: {user.get('name','')}", styles['Normal']),
         Spacer(1, 12),
     ]
@@ -819,19 +854,18 @@ async def report_pdf(user=Depends(get_current_user), month: Optional[str] = None
         story.append(tb)
     doc.build(story)
     return Response(content=buf.getvalue(), media_type="application/pdf",
-                    headers={"Content-Disposition": f"attachment; filename=Laporan-{month}.pdf"})
+                    headers={"Content-Disposition": f"attachment; filename=Laporan-{label}.pdf"})
 
 @api_router.get('/report/excel')
-async def report_excel(user=Depends(get_current_user), month: Optional[str] = None):
-    if not month:
-        month = now_utc().strftime('%Y-%m')
-    d = await _report_data(user['user_id'], month)
+async def report_excel(user=Depends(get_current_user), month: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    d = await _resolve_report(user['user_id'], month, start, end)
+    label = d['month']
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
     wb = Workbook()
     ws = wb.active
-    ws.title = f"Ringkasan {month}"
-    ws.append([f"Laporan Keuangan — {month}"])
+    ws.title = "Ringkasan"
+    ws.append([f"Laporan Keuangan — {label}"])
     ws['A1'].font = Font(bold=True, size=14)
     ws.append([f"Nama: {user.get('name','')}"])
     ws.append([])
@@ -861,7 +895,7 @@ async def report_excel(user=Depends(get_current_user), month: Optional[str] = No
     wb.save(buf)
     return Response(content=buf.getvalue(),
                     media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    headers={"Content-Disposition": f"attachment; filename=Laporan-{month}.xlsx"})
+                    headers={"Content-Disposition": f"attachment; filename=Laporan-{label}.xlsx"})
 
 # ---------------- App Wiring ----------------
 app.include_router(api_router)

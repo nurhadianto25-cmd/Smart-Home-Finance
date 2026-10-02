@@ -1,39 +1,30 @@
-# Smart Home Finance — Product Requirements
+# Smart Home Finance — PRD
 
-## Overview
-Aplikasi keuangan keluarga Indonesia bertema gelap dengan aksen neon, mengikuti gaya dashboard "Smart Home Finance". Pengguna dapat mengelola pemasukan/pengeluaran, tagihan, cicilan, belanja bulanan, kebutuhan pendidikan anak, tabungan (target), plus insight AI dalam Bahasa Indonesia.
+## Problem statement
+Family finance app (Expo RN + FastAPI + MongoDB). Imported from GitHub. Iteration 2 added 4 user-requested features.
 
-## Tech Stack
-- Frontend: Expo (React Native) + Expo Router (57), react-native-safe-area-context, react-native-svg untuk chart, MaterialDesignIcons
-- Backend: FastAPI + Motor (MongoDB), JWT (email/password), Emergent Google Sign-in, Emergent LLM (Claude Sonnet 5) untuk insight
-- Storage: MongoDB (users, user_sessions, transactions, bills, shopping, savings, education_children, education_items)
+## Architecture
+- Backend: FastAPI (`/app/backend/server.py`), MongoDB. All routes under `/api`.
+- Frontend: Expo Router. Theme tokens + reactive theming in `src/theme.ts` (makeStyles/useTheme). Global prefs store `src/store.ts`, provider `src/prefs.tsx`, i18n `src/i18n.ts`. Currency-aware `idr()` in `src/api.ts`.
 
-## Auth
-- Register/Login Email+Password (JWT 7 hari)
-- Google Sign-in via Emergent (`session_id` → `POST /api/auth/session` → `session_token`)
-- `/api/auth/me`, `/api/auth/logout`
+## User personas
+- Parents managing household income, expenses, bills, savings, and children's education budgets.
 
-## Navigation
-- 4 Tab bawah: Dashboard, Transaksi, Tagihan, Tabungan
-- Modal Menu (ikon hamburger di Dashboard): Belanja, Pendidikan, Laporan, Analisis, Pengaturan
-- Modal Add Transaction
+## Core requirements (static)
+- Auth (email + Google), transactions, bills (auto-pay), savings goals, education budgets, shopping, dashboard, AI insights, reports (text/PDF/Excel).
 
-## Screens
-- **Dashboard**: financial balance, income/expense/saving rate/tx count stats, financial health ring, expense donut, cashflow line chart (6 bulan), upcoming bills, savings goals, AI insight card.
-- **Transaksi**: filter chips (Semua/Pemasukan/Pengeluaran), grouped by date, tambah via modal.
-- **Tagihan**: 5 status group (Segera/Belum/Terlambat/Lunas), filter by kind (rutin/cicilan/pinjaman/lainnya), toggle lunas, delete.
-- **Tabungan**: hero total, target cards dengan jar animation & progress ring, add/edit/delete.
-- **Belanja**: monthly budget summary, item cards with budget vs realisasi progress, status badge.
-- **Pendidikan**: multi-child, per-child budget items, agenda.
-- **Laporan**: monthly summary + charts.
-- **Analisis**: AI insight (regenerate), health score, saving rate, top kategori.
-- **Pengaturan**: profile, tema, bahasa, logout.
+## Implemented
+- 2026-06 (import): Full MVP set up and running.
+- 2026-06 (iteration 2):
+  - Continuous running balance: `GET /api/dashboard/summary` returns `cumulative_balance` (all income − all expense up to selected month) and `opening_balance`. Dashboard shows RUNNING BALANCE + OPENING BALANCE + NET THIS MONTH.
+  - User photo on dashboard header (tap → Settings).
+  - Custom date-range reports: `report/text|pdf|excel?start=YYYY-MM-DD&end=YYYY-MM-DD`; Reports screen has month/custom toggle + start/end inputs.
+  - Preferences app-wide: Theme (dark/light), Language (ID/EN, full UI translation on primary screens), Currency (IDR/USD display conversion @ Rp16.000). Persisted via local storage, reactive via external store.
+  - Backend deps pinned: reportlab, openpyxl.
 
-## Design
-- Dark navy `#0A0E1A` bg, neon accents (green success `#10D96A`, red error `#FF4757`, blue info `#3D7EFF`, purple brand `#9B6BFF`, orange warning `#FF9D3D`).
-- Cards `#12182B`, inputs `#1C243B`, borders `#2A3441`.
+## Backlog / remaining (P1/P2)
+- P1: Translate deep secondary-screen labels (education categories, some modal field labels remain Indonesian).
+- P2: Bill due reminders, per-category monthly budget caps, shareable monthly report link.
 
-## Key Endpoints
-- Auth: `/api/auth/register|login|session|me|logout`
-- CRUD: `/api/transactions`, `/api/bills`, `/api/shopping`, `/api/savings`, `/api/education/children`, `/api/education/items`
-- Aggregation: `/api/dashboard/summary`, `/api/insights/generate`
+## Next tasks
+- Optional: finish i18n coverage on belanja/pendidikan/tabungan inner labels.

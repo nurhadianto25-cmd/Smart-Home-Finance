@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, FlatList, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, FlatList, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
 import { useRouter } from "expo-router";
 import { api, idr } from "@/src/api";
-import { colors, radius, spacing } from "@/src/theme";
+import { usePrefs } from "@/src/prefs";
+import { localeTag } from "@/src/i18n";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { PillButton, EmptyState } from "@/src/components/ui";
 
 const CAT_ICONS: Record<string, string> = {
@@ -29,6 +31,9 @@ export default function Transaksi() {
   const [type, setType] = useState<"all" | "income" | "expense">("all");
   const [items, setItems] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const { colors } = useTheme();
+  const { t } = usePrefs();
+  const styles = useStyles();
 
   const load = useCallback(async () => {
     try {
@@ -59,21 +64,21 @@ export default function Transaksi() {
       <View style={{ paddingTop: insets.top + 12, paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.md, backgroundColor: colors.surface }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <View>
-            <Text style={styles.title}>Transaksi</Text>
-            <Text style={styles.sub}>Semua aktivitas keuangan Anda</Text>
+            <Text style={styles.title}>{t("transactions")}</Text>
+            <Text style={styles.sub}>{t("txSub")}</Text>
           </View>
           <Pressable testID="add-tx" onPress={() => router.push("/(app)/add-transaction")} style={styles.fabInline}>
             <Icon name="plus" size={22} color={colors.onBrandPrimary} />
           </Pressable>
         </View>
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          <View style={styles.mini}><Text style={styles.miniLabel}>PEMASUKAN</Text><Text style={[styles.miniVal, { color: colors.success }]}>{idr(totalIn)}</Text></View>
-          <View style={styles.mini}><Text style={styles.miniLabel}>PENGELUARAN</Text><Text style={[styles.miniVal, { color: colors.error }]}>{idr(totalOut)}</Text></View>
+          <View style={styles.mini}><Text style={styles.miniLabel}>{t("income").toUpperCase()}</Text><Text style={[styles.miniVal, { color: colors.success }]}>{idr(totalIn)}</Text></View>
+          <View style={styles.mini}><Text style={styles.miniLabel}>{t("expense").toUpperCase()}</Text><Text style={[styles.miniVal, { color: colors.error }]}>{idr(totalOut)}</Text></View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 12 }}>
-          <PillButton testID="filter-all" label="Semua" active={type === "all"} onPress={() => setType("all")} />
-          <PillButton testID="filter-income" label="Pemasukan" active={type === "income"} onPress={() => setType("income")} />
-          <PillButton testID="filter-expense" label="Pengeluaran" active={type === "expense"} onPress={() => setType("expense")} />
+          <PillButton testID="filter-all" label={t("all")} active={type === "all"} onPress={() => setType("all")} />
+          <PillButton testID="filter-income" label={t("income")} active={type === "income"} onPress={() => setType("income")} />
+          <PillButton testID="filter-expense" label={t("expense")} active={type === "expense"} onPress={() => setType("expense")} />
         </ScrollView>
       </View>
 
@@ -82,10 +87,10 @@ export default function Transaksi() {
         keyExtractor={([d]) => d}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: insets.bottom + 24, gap: spacing.md }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.brandPrimary} />}
-        ListEmptyComponent={<EmptyState icon="receipt-text-outline" title="Belum ada transaksi" hint="Tambahkan transaksi pertama Anda dengan tombol +" />}
+        ListEmptyComponent={<EmptyState icon="receipt-text-outline" title={t("noTx")} hint={t("noTxHint")} />}
         renderItem={({ item: [date, arr] }) => {
           const daySum = (arr as any[]).reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
-          const dateLabel = new Date(date + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+          const dateLabel = new Date(date + "T00:00:00").toLocaleDateString(localeTag(), { day: "numeric", month: "long", year: "numeric" });
           return (
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -133,7 +138,7 @@ export default function Transaksi() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   title: { color: colors.onSurface, fontSize: 26, fontWeight: "800" },
   sub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   fabInline: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
@@ -151,4 +156,4 @@ const styles = StyleSheet.create({
   rowSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   rowAmount: { fontSize: 14, fontWeight: "800" },
   del: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center", marginLeft: 6 },
-});
+}));

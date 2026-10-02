@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { api } from "@/src/api";
-import { colors, radius, spacing } from "@/src/theme";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { PrimaryButton } from "@/src/components/ui";
 import { formatDateInput, isoToDisplay } from "@/src/utils/date";
 
@@ -16,6 +16,8 @@ export default function AddTransaction() {
   const router = useRouter();
   const params = useLocalSearchParams<{ tx_id?: string; type?: string; amount?: string; category?: string; title?: string; note?: string; date?: string; child_id?: string }>();
   const editing = !!params.tx_id;
+  const { colors } = useTheme();
+  const styles = useStyles();
 
   const [type, setType] = useState<"income" | "expense">((params.type as any) || "expense");
   const [amount, setAmount] = useState<string>(params.amount ? String(params.amount) : "");
@@ -173,7 +175,7 @@ export default function AddTransaction() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   title: { color: colors.onSurface, fontSize: 18, fontWeight: "800", flex: 1, textAlign: "center" },
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
@@ -184,4 +186,4 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.surfaceTertiary, color: colors.onSurface, borderRadius: radius.md, paddingHorizontal: 14, height: 48, borderWidth: 1, borderColor: colors.border, fontSize: 15 },
   cat: { paddingHorizontal: 14, height: 36, borderRadius: radius.pill, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, justifyContent: "center" },
   catText: { color: colors.muted, fontSize: 13 },
-});
+}));

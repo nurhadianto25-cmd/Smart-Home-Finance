@@ -1,29 +1,33 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
 import { api, idr } from "@/src/api";
-import { colors, radius, spacing } from "@/src/theme";
+import { usePrefs } from "@/src/prefs";
+import { colors as C, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { EmptyState, PillButton, PrimaryButton } from "@/src/components/ui";
 import { formatDateInput, isoToDisplay } from "@/src/utils/date";
 
 const STATUS_COLORS: Record<string, string> = {
-  segera: colors.warning, belum: colors.error, terlambat: colors.error, lunas: colors.success, ditangguhkan: colors.muted,
+  segera: C.warning, belum: C.error, terlambat: C.error, lunas: C.success, ditangguhkan: C.muted,
 };
-const STATUS_LABEL: Record<string, string> = {
-  segera: "Segera Jatuh Tempo", belum: "Belum Dibayar", terlambat: "Terlambat", lunas: "Lunas", ditangguhkan: "Ditangguhkan",
+const STATUS_KEY: Record<string, string> = {
+  segera: "stSegera", belum: "stBelum", terlambat: "stTerlambat", lunas: "stLunas", ditangguhkan: "stDitangguhkan",
 };
 const KINDS = [
-  { k: "rutin", label: "Tagihan Rutin", icon: "flash", color: colors.info },
-  { k: "cicilan", label: "Cicilan / Kredit", icon: "credit-card", color: colors.warning },
-  { k: "pinjaman", label: "Pinjaman", icon: "cash", color: colors.brandPrimary },
-  { k: "lainnya", label: "Lainnya", icon: "dots-horizontal", color: colors.muted },
+  { k: "rutin", labelKey: "billRutin", icon: "flash", color: C.info },
+  { k: "cicilan", labelKey: "billCicilan", icon: "credit-card", color: C.warning },
+  { k: "pinjaman", labelKey: "billPinjaman", icon: "cash", color: C.brandPrimary },
+  { k: "lainnya", labelKey: "billLainnya", icon: "dots-horizontal", color: C.muted },
 ];
 
 const emptyForm = { name: "", kind: "rutin", category: "Umum", amount: "", due_date_display: "", due_date_iso: "" as string | null, status: "belum", note: "" };
 
 export default function Tagihan() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const { t } = usePrefs();
+  const styles = useStyles();
   const [items, setItems] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [refreshing, setRefreshing] = useState(false);
@@ -100,8 +104,8 @@ export default function Tagihan() {
       >
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Tagihan & Cicilan</Text>
-            <Text style={styles.sub}>Otomatis lunas saat transaksi cocok diinput</Text>
+            <Text style={styles.title}>{t("billsLong")}</Text>
+            <Text style={styles.sub}>{t("billsSub")}</Text>
           </View>
           <Pressable testID="add-bill" onPress={openAdd} style={styles.fab}>
             <Icon name="plus" size={22} color={colors.onBrandPrimary} />
@@ -109,28 +113,28 @@ export default function Tagihan() {
         </View>
 
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          <MiniStat label="TOTAL AKTIF" value={idr(totalActive)} color={colors.brandPrimary} icon="wallet" />
-          <MiniStat label="SUDAH DIBAYAR" value={idr(paid)} color={colors.success} icon="check-circle" />
+          <MiniStat label={t("totalActive")} value={idr(totalActive)} color={colors.brandPrimary} icon="wallet" />
+          <MiniStat label={t("paid")} value={idr(paid)} color={colors.success} icon="check-circle" />
         </View>
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          <MiniStat label="JUMLAH" value={String(items.length)} color={colors.info} icon="format-list-bulleted" />
-          <MiniStat label="SEGERA" value={String(dueSoon)} color={colors.warning} icon="bell-ring" />
+          <MiniStat label={t("count")} value={String(items.length)} color={colors.info} icon="format-list-bulleted" />
+          <MiniStat label={t("soon")} value={String(dueSoon)} color={colors.warning} icon="bell-ring" />
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 12 }}>
-          <PillButton testID="fbill-all" label="Semua" active={filter === "all"} onPress={() => setFilter("all")} />
+          <PillButton testID="fbill-all" label={t("all")} active={filter === "all"} onPress={() => setFilter("all")} />
           {KINDS.map(k => (
-            <PillButton key={k.k} testID={`fbill-${k.k}`} label={k.label} active={filter === k.k} onPress={() => setFilter(k.k)} />
+            <PillButton key={k.k} testID={`fbill-${k.k}`} label={t(k.labelKey)} active={filter === k.k} onPress={() => setFilter(k.k)} />
           ))}
         </ScrollView>
 
         {filtered.length === 0 ? (
-          <EmptyState icon="receipt-text-outline" title="Belum ada tagihan" hint="Tambahkan tagihan atau cicilan pertama Anda." />
+          <EmptyState icon="receipt-text-outline" title={t("noBills")} hint={t("noBillsHint")} />
         ) : order.map(k => grouped[k] ? (
           <View key={k} style={{ gap: 8 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: STATUS_COLORS[k] }} />
-              <Text style={styles.sectionHeader}>{STATUS_LABEL[k]}</Text>
+              <Text style={styles.sectionHeader}>{t(STATUS_KEY[k])}</Text>
               <View style={styles.countBadge}><Text style={styles.countText}>{grouped[k].length}</Text></View>
             </View>
             {grouped[k].map(b => (
@@ -171,23 +175,23 @@ export default function Tagihan() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalBg}>
           <View style={styles.modal}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <Text style={{ color: colors.onSurface, fontSize: 18, fontWeight: "800" }}>{modal.edit ? "Edit Kewajiban" : "Tambah Kewajiban"}</Text>
+              <Text style={{ color: colors.onSurface, fontSize: 18, fontWeight: "800" }}>{modal.edit ? t("editObligation") : t("addObligation")}</Text>
               <Pressable onPress={() => setModal({ open: false })} testID="close-bill-modal"><Icon name="close" size={22} color={colors.onSurface} /></Pressable>
             </View>
             <ScrollView contentContainerStyle={{ gap: 10 }} keyboardShouldPersistTaps="handled">
-              <Text style={styles.label}>Jenis</Text>
+              <Text style={styles.label}>{t("kind")}</Text>
               <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
                 {KINDS.map(k => (
-                  <PillButton key={k.k} label={k.label} active={form.kind === k.k} onPress={() => setForm((f: any) => ({ ...f, kind: k.k }))} />
+                  <PillButton key={k.k} label={t(k.labelKey)} active={form.kind === k.k} onPress={() => setForm((f: any) => ({ ...f, kind: k.k }))} />
                 ))}
               </View>
-              <Text style={styles.label}>Nama</Text>
-              <TextInput testID="bill-name" style={styles.input} value={form.name} onChangeText={t => setForm((f: any) => ({ ...f, name: t }))} placeholder="cth. Listrik PLN" placeholderTextColor={colors.muted} />
-              <Text style={styles.label}>Kategori (samakan dgn kategori transaksi agar auto-lunas)</Text>
-              <TextInput style={styles.input} value={form.category} onChangeText={t => setForm((f: any) => ({ ...f, category: t }))} placeholder="Tagihan" placeholderTextColor={colors.muted} />
-              <Text style={styles.label}>Nominal (Rp)</Text>
-              <TextInput testID="bill-amount" style={styles.input} value={form.amount} onChangeText={t => setForm((f: any) => ({ ...f, amount: t.replace(/[^0-9]/g, "") }))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.muted} />
-              <Text style={styles.label}>Jatuh Tempo (ketik angka saja)</Text>
+              <Text style={styles.label}>{t("name")}</Text>
+              <TextInput testID="bill-name" style={styles.input} value={form.name} onChangeText={t2 => setForm((f: any) => ({ ...f, name: t2 }))} placeholder="cth. Listrik PLN" placeholderTextColor={colors.muted} />
+              <Text style={styles.label}>{t("categoryMatch")}</Text>
+              <TextInput style={styles.input} value={form.category} onChangeText={t2 => setForm((f: any) => ({ ...f, category: t2 }))} placeholder="Tagihan" placeholderTextColor={colors.muted} />
+              <Text style={styles.label}>{t("amountRp")}</Text>
+              <TextInput testID="bill-amount" style={styles.input} value={form.amount} onChangeText={t2 => setForm((f: any) => ({ ...f, amount: t2.replace(/[^0-9]/g, "") }))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.muted} />
+              <Text style={styles.label}>{t("dueDate")}</Text>
               <TextInput
                 testID="bill-date"
                 style={styles.input}
@@ -198,7 +202,7 @@ export default function Tagihan() {
                 placeholder="DD-MM-YYYY"
                 placeholderTextColor={colors.muted}
               />
-              <PrimaryButton label={modal.edit ? "Simpan Perubahan" : "Simpan"} onPress={submit} testID="bill-submit" />
+              <PrimaryButton label={modal.edit ? t("saveChanges") : t("save")} onPress={submit} testID="bill-submit" />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -208,6 +212,7 @@ export default function Tagihan() {
 }
 
 function MiniStat({ label, value, color, icon }: any) {
+  const styles = useStyles();
   return (
     <View style={[styles.mini, { borderColor: `${color}55` }]}>
       <View style={[styles.miniIcon, { backgroundColor: `${color}22` }]}><Icon name={icon} size={16} color={color} /></View>
@@ -219,7 +224,7 @@ function MiniStat({ label, value, color, icon }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   title: { color: colors.onSurface, fontSize: 24, fontWeight: "800" },
   sub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   fab: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
@@ -242,4 +247,4 @@ const styles = StyleSheet.create({
   modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, maxHeight: "88%", borderWidth: 1, borderColor: colors.border },
   label: { color: colors.muted, fontSize: 11, fontWeight: "700", textTransform: "uppercase", marginTop: 4 },
   input: { backgroundColor: colors.surfaceTertiary, color: colors.onSurface, borderRadius: radius.md, paddingHorizontal: 14, height: 46, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
-});
+}));

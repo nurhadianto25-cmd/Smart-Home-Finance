@@ -5,13 +5,15 @@ import Icon from "@react-native-vector-icons/material-design-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/auth";
-import { colors, radius, spacing } from "@/src/theme";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { PrimaryButton } from "@/src/components/ui";
 
 export default function Login() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { loginEmail, loginGoogle } = useAuth();
+  const { colors, scheme } = useTheme();
+  const styles = useStyles();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,7 +34,7 @@ export default function Login() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.surface }}>
-      <LinearGradient colors={["#1B1246", "#0A0E1A"]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={scheme === "dark" ? ["#1B1246", "#0A0E1A"] : ["#E7ECFA", "#F4F6FB"]} style={StyleSheet.absoluteFill} />
       <ScrollView contentContainerStyle={[styles.wrap, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         <View style={styles.brandBox}>
           <View style={styles.brandIcon}>
@@ -92,7 +94,7 @@ export default function Login() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   wrap: { paddingHorizontal: spacing.lg, gap: spacing.xl },
   brandBox: { alignItems: "center", gap: spacing.md },
   brandIcon: {
@@ -126,4 +128,4 @@ const styles = StyleSheet.create({
   googleText: { color: colors.onSurface, fontSize: 14, fontWeight: "600" },
   linkWrap: { alignItems: "center", marginTop: spacing.sm },
   link: { color: colors.muted, fontSize: 13 },
-});
+}));

@@ -1,17 +1,19 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
 import { useRouter } from "expo-router";
 import { api, idr } from "@/src/api";
-import { colors, radius, spacing } from "@/src/theme";
+import { colors as C, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { EmptyState, PrimaryButton, ProgressBar } from "@/src/components/ui";
 
-const STATUS: any = { belum: { c: colors.muted, l: "Belum" }, sebagian: { c: colors.warning, l: "Sebagian" }, selesai: { c: colors.success, l: "Selesai" } };
+const STATUS: any = { belum: { c: C.muted, l: "Belum" }, sebagian: { c: C.warning, l: "Sebagian" }, selesai: { c: C.success, l: "Selesai" } };
 
 export default function Belanja() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useStyles();
   const month = new Date().toISOString().slice(0, 7);
   const [items, setItems] = useState<any[]>([]);
   const [modal, setModal] = useState(false);
@@ -117,7 +119,7 @@ export default function Belanja() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   title: { color: colors.onSurface, fontSize: 20, fontWeight: "800" },
@@ -136,4 +138,4 @@ const styles = StyleSheet.create({
   modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, maxHeight: "85%", borderWidth: 1, borderColor: colors.border },
   label: { color: colors.muted, fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
   input: { backgroundColor: colors.surfaceTertiary, color: colors.onSurface, borderRadius: radius.md, paddingHorizontal: 14, height: 46, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
-});
+}));

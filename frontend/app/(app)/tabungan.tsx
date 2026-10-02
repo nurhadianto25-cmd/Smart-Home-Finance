@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
 import { api, idr } from "@/src/api";
-import { colors, radius, spacing } from "@/src/theme";
+import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { EmptyState, PrimaryButton, ProgressBar } from "@/src/components/ui";
 
 const GOAL_COLORS = ["#10D96A", "#3D7EFF", "#9B6BFF", "#FF9D3D", "#FF4757", "#F7C948"];
 
 export default function Tabungan() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [items, setItems] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [modal, setModal] = useState(false);
@@ -126,7 +128,7 @@ export default function Tabungan() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   title: { color: colors.onSurface, fontSize: 24, fontWeight: "800" },
   sub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   fab: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
@@ -148,4 +150,4 @@ const styles = StyleSheet.create({
   label: { color: colors.muted, fontSize: 11, fontWeight: "700", textTransform: "uppercase", marginTop: 4 },
   input: { backgroundColor: colors.surfaceTertiary, color: colors.onSurface, borderRadius: radius.md, paddingHorizontal: 14, height: 46, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
   colorDot: { width: 34, height: 34, borderRadius: 17 },
-});
+}));
