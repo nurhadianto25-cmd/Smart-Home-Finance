@@ -122,6 +122,8 @@ class TransactionIn(BaseModel):
     note: Optional[str] = ''
     date: Optional[str] = None
     child_id: Optional[str] = None
+    link_type: Optional[str] = None  # 'bill' | 'shopping' | 'education' | 'savings'
+    link_id: Optional[str] = None
 
 class TransactionOut(TransactionIn):
     tx_id: str
@@ -138,6 +140,7 @@ class ShoppingIn(BaseModel):
 
 class ShoppingOut(ShoppingIn):
     item_id: str
+    auto_realized: float = 0
 
 class BillIn(BaseModel):
     name: str
@@ -161,6 +164,7 @@ class SavingsIn(BaseModel):
 
 class SavingsOut(SavingsIn):
     goal_id: str
+    auto_saved: float = 0
 
 class EducationChildIn(BaseModel):
     name: str
@@ -286,6 +290,34 @@ async def logout(authorization: Optional[str] = Header(None)):
 def _clean_tx(doc: dict) -> dict:
     return {k: v for k, v in doc.items() if k not in ('_id', 'user_id', 'month')}
 
+async def _linked_sum(user_id: str, link_type: str, link_id: str, month: Optional[str] = None, tx_type: Optional[str] = 'expense') -> float:
+    """Sum of transactions explicitly allocated (linked) to a budget item."""
+    q = {"user_id": user_id, "link_type": link_type, "link_id": link_id}
+    if tx_type:
+        q['type'] = tx_type
+    txs = await db.transactions.find(q, {"_id": 0, "amount": 1, "month": 1}).to_list(5000)
+    if month:
+        txs = [t for t in txs if t.get('month') == month]
+    return sum(float(t.get('amount') or 0) for t in txs)
+
+async def _decorate_shopping(items: list, user_id: str) -> list:
+    out = []
+    for it in items:
+        linked = await _linked_sum(user_id, 'shopping', it['item_id'], it.get('month'))
+        realized = max(float(it.get('realized') or 0), linked)
+        budget = float(it.get('budget') or 0)
+        status = 'belum' if realized <= 0 else ('selesai' if realized >= budget else 'sebagian')
+        out.append({**it, "realized": realized, "auto_realized": linked, "status": status})
+    return out
+
+async def _decorate_savings(items: list, user_id: str) -> list:
+    out = []
+    for g in items:
+        linked = await _linked_sum(user_id, 'savings', g['goal_id'], None)
+        saved = max(float(g.get('saved') or 0), linked)
+        out.append({**g, "saved": saved, "auto_saved": linked})
+    return out
+
 @api_router.get('/transactions', response_model=List[TransactionOut])
 async def list_transactions(user=Depends(get_current_user), month: Optional[str] = None, type: Optional[str] = None):
     q = {"user_id": user['user_id']}
@@ -305,6 +337,7 @@ async def create_transaction(body: TransactionIn, user=Depends(get_current_user)
         "category": body.category, "title": body.title,
         "note": body.note or '', "date": date_str, "month": month,
         "child_id": body.child_id,
+        "link_type": body.link_type, "link_id": body.link_id,
         "created_at": now_utc().isoformat(),
     }
     await db.transactions.insert_one(doc.copy())
@@ -318,6 +351,7 @@ async def update_transaction(tx_id: str, body: TransactionIn, user=Depends(get_c
         "type": body.type, "amount": body.amount, "category": body.category,
         "title": body.title, "note": body.note or '', "date": date_str,
         "month": month, "child_id": body.child_id,
+        "link_type": body.link_type, "link_id": body.link_id,
     }
     res = await db.transactions.update_one({"tx_id": tx_id, "user_id": user['user_id']}, {"$set": upd})
     if res.matched_count == 0:
@@ -338,21 +372,24 @@ async def list_shopping(user=Depends(get_current_user), month: Optional[str] = N
     q = {"user_id": user['user_id']}
     if month: q['month'] = month
     items = await db.shopping.find(q, {"_id": 0, "user_id": 0}).to_list(500)
-    return items
+    return await _decorate_shopping(items, user['user_id'])
 
 @api_router.post('/shopping', response_model=ShoppingOut)
 async def create_shopping(body: ShoppingIn, user=Depends(get_current_user)):
     item_id = new_id('shp')
     doc = {"item_id": item_id, "user_id": user['user_id'], **body.dict()}
     await db.shopping.insert_one(doc.copy())
-    return {k: v for k, v in doc.items() if k != 'user_id'}
+    d = {k: v for k, v in doc.items() if k != 'user_id'}
+    dec = await _decorate_shopping([d], user['user_id'])
+    return dec[0]
 
 @api_router.put('/shopping/{item_id}', response_model=ShoppingOut)
 async def update_shopping(item_id: str, body: ShoppingIn, user=Depends(get_current_user)):
     await db.shopping.update_one({"item_id": item_id, "user_id": user['user_id']}, {"$set": body.dict()})
     doc = await db.shopping.find_one({"item_id": item_id, "user_id": user['user_id']}, {"_id": 0, "user_id": 0})
     if not doc: raise HTTPException(404, "Not found")
-    return doc
+    dec = await _decorate_shopping([doc], user['user_id'])
+    return dec[0]
 
 @api_router.delete('/shopping/{item_id}')
 async def delete_shopping(item_id: str, user=Depends(get_current_user)):
@@ -391,15 +428,15 @@ def _match_bill_tx(bill: dict, txs: list) -> bool:
     return False
 
 async def _decorate_bills(bills: list, user_id: str) -> list:
-    month_map = await _txs_expense_by_month(user_id)
     today = now_utc().date()
     out = []
     for b in bills:
         month = _bill_month(b)
-        matches = _match_bill_tx(b, month_map.get(month, []))
+        amt = float(b.get('amount') or 0)
+        linked = await _linked_sum(user_id, 'bill', b.get('bill_id', ''), month)
         status = b.get('status', 'belum')
         auto_paid = False
-        if matches and status != 'lunas':
+        if amt > 0 and linked >= amt * 0.99 and status != 'lunas':
             status = 'lunas'
             auto_paid = True
         elif status != 'lunas':
@@ -446,21 +483,24 @@ async def delete_bill(bill_id: str, user=Depends(get_current_user)):
 @api_router.get('/savings', response_model=List[SavingsOut])
 async def list_savings(user=Depends(get_current_user)):
     items = await db.savings.find({"user_id": user['user_id']}, {"_id": 0, "user_id": 0}).to_list(500)
-    return items
+    return await _decorate_savings(items, user['user_id'])
 
 @api_router.post('/savings', response_model=SavingsOut)
 async def create_savings(body: SavingsIn, user=Depends(get_current_user)):
     goal_id = new_id('goal')
     doc = {"goal_id": goal_id, "user_id": user['user_id'], **body.dict()}
     await db.savings.insert_one(doc.copy())
-    return {k: v for k, v in doc.items() if k != 'user_id'}
+    d = {k: v for k, v in doc.items() if k != 'user_id'}
+    dec = await _decorate_savings([d], user['user_id'])
+    return dec[0]
 
 @api_router.put('/savings/{goal_id}', response_model=SavingsOut)
 async def update_savings(goal_id: str, body: SavingsIn, user=Depends(get_current_user)):
     await db.savings.update_one({"goal_id": goal_id, "user_id": user['user_id']}, {"$set": body.dict()})
     doc = await db.savings.find_one({"goal_id": goal_id, "user_id": user['user_id']}, {"_id": 0, "user_id": 0})
     if not doc: raise HTTPException(404, "Not found")
-    return doc
+    dec = await _decorate_savings([doc], user['user_id'])
+    return dec[0]
 
 @api_router.delete('/savings/{goal_id}')
 async def delete_savings(goal_id: str, user=Depends(get_current_user)):
@@ -516,14 +556,9 @@ def _match_edu_tx(item: dict, txs: list) -> float:
 async def _decorate_edu_items(items: list, user_id: str) -> list:
     out = []
     for it in items:
-        month = it.get('month')
-        txs = await db.transactions.find(
-            {"user_id": user_id, "type": "expense", "month": month}, {"_id": 0}
-        ).to_list(1000)
-        auto = _match_edu_tx(it, txs)
+        auto = await _linked_sum(user_id, 'education', it['item_id'], it.get('month'))
         realized = max(float(it.get('realized') or 0), auto)
         budget = float(it.get('budget') or 0)
-        status = it.get('status', 'belum')
         if realized <= 0:
             status = 'belum'
         elif realized >= budget:
@@ -641,11 +676,23 @@ async def dashboard_summary(user=Depends(get_current_user), month: Optional[str]
             "expense": sum(t['amount'] for t in m_txs if t['type'] == 'expense'),
         })
 
-    score = 50
+    available = opening_balance + income
     if income > 0:
-        score = min(100, int(50 + (balance / income) * 60))
-    if income == 0 and expense == 0:
+        saving_rate = round((balance / income) * 100, 1)
+    elif available > 0:
+        saving_rate = round(((available - expense) / available) * 100, 1)
+    else:
+        saving_rate = 0.0
+
+    if income == 0 and expense == 0 and cumulative_balance == 0:
         score = 0
+    else:
+        score = 50
+        if available > 0:
+            score = int(50 + ((available - expense) / available) * 50)
+        if cumulative_balance < 0:
+            score = min(score, 25)
+        score = max(0, min(100, score))
 
     bills_raw = await db.bills.find({"user_id": user['user_id']}, {"_id": 0, "user_id": 0}).to_list(500)
     bills = await _decorate_bills(bills_raw, user['user_id'])
@@ -669,6 +716,7 @@ async def dashboard_summary(user=Depends(get_current_user), month: Optional[str]
     return {
         "month": month, "income": income, "expense": expense, "balance": balance,
         "cumulative_balance": cumulative_balance, "opening_balance": opening_balance,
+        "available": available,
         "saving_rate": saving_rate, "health_score": score,
         "expense_by_category": categories, "cashflow": cashflow,
         "upcoming_bills": upcoming[:5], "savings": savings,
@@ -683,17 +731,22 @@ async def generate_insight(user=Depends(get_current_user), month: Optional[str] 
     txs = await db.transactions.find({"user_id": user['user_id'], "month": month}, {"_id": 0}).to_list(1000)
     income = sum(t['amount'] for t in txs if t['type'] == 'income')
     expense = sum(t['amount'] for t in txs if t['type'] == 'expense')
+    prev = await db.transactions.find({"user_id": user['user_id'], "month": {"$lt": month}}, {"_id": 0, "amount": 1, "type": 1}).to_list(100000)
+    opening = sum(t['amount'] for t in prev if t['type'] == 'income') - sum(t['amount'] for t in prev if t['type'] == 'expense')
+    cumulative = opening + income - expense
     cat_map = {}
     for t in txs:
         if t['type'] == 'expense':
             cat_map[t['category']] = cat_map.get(t['category'], 0) + t['amount']
 
-    if income == 0 and expense == 0:
-        return {"insight": "Belum ada data transaksi bulan ini. Tambahkan pemasukan dan pengeluaran pertama Anda untuk mendapatkan analisis keuangan yang lebih akurat."}
+    if income == 0 and expense == 0 and opening == 0:
+        return {"insight": "Belum ada data transaksi. Tambahkan pemasukan dan pengeluaran pertama Anda untuk mendapatkan analisis keuangan yang lebih akurat."}
 
     summary = (
-        f"Bulan {month}: Pemasukan Rp{income:,.0f}, Pengeluaran Rp{expense:,.0f}, "
-        f"Selisih Rp{income - expense:,.0f}. Pengeluaran per kategori: "
+        f"Bulan {month}: Saldo awal (akumulasi bulan-bulan sebelumnya) Rp{opening:,.0f}. "
+        f"Pemasukan bulan ini Rp{income:,.0f}, Pengeluaran Rp{expense:,.0f}, "
+        f"Selisih bulan ini Rp{income - expense:,.0f}, Saldo berjalan total Rp{cumulative:,.0f}. "
+        f"Pengeluaran per kategori: "
         + ", ".join([f"{k} Rp{v:,.0f}" for k, v in cat_map.items()])
     )
     try:
@@ -704,6 +757,9 @@ async def generate_insight(user=Depends(get_current_user), month: Optional[str] 
             system_message=(
                 "Anda adalah asisten keuangan keluarga Indonesia. "
                 "Berikan analisis singkat 3-4 kalimat dalam Bahasa Indonesia yang ramah dan actionable. "
+                "PENTING: nilai kesehatan keuangan dari SALDO BERJALAN total (bukan hanya selisih bulan ini). "
+                "Jika pengeluaran bulan ini lebih besar dari pemasukan tetapi masih tertutup saldo bulan sebelumnya, "
+                "jangan sebut 'minus' atau 'mengkhawatirkan' selama saldo berjalan masih positif. "
                 "Sertakan satu rekomendasi konkret untuk menghemat. "
                 "Gunakan format Rupiah (Rp). Jangan pakai markdown."
             ),
@@ -713,12 +769,16 @@ async def generate_insight(user=Depends(get_current_user), month: Optional[str] 
     except Exception as e:
         logger.warning(f"AI insight failed: {e}")
         top_cat = max(cat_map.items(), key=lambda x: x[1]) if cat_map else None
-        if income > expense:
-            base = f"Keuangan Anda dalam kondisi baik. Selisih pemasukan Rp{income - expense:,.0f} bulan ini."
+        if cumulative >= 0:
+            base = f"Saldo berjalan Anda sehat sebesar Rp{cumulative:,.0f}."
+            if expense > income:
+                base += f" Meski pengeluaran bulan ini (Rp{expense:,.0f}) lebih besar dari pemasukan (Rp{income:,.0f}), semuanya masih tertutup saldo bulan sebelumnya (Rp{opening:,.0f})."
+            else:
+                base += f" Bulan ini Anda surplus Rp{income - expense:,.0f}."
         else:
-            base = f"Perhatian: Pengeluaran melebihi pemasukan sebesar Rp{expense - income:,.0f} bulan ini."
+            base = f"Perhatian: saldo berjalan Anda minus Rp{abs(cumulative):,.0f} karena pengeluaran kumulatif melebihi pemasukan."
         if top_cat:
-            base += f" Kategori '{top_cat[0]}' menjadi pengeluaran terbesar (Rp{top_cat[1]:,.0f}). Coba tinjau ulang kategori ini untuk menghemat."
+            base += f" Kategori '{top_cat[0]}' adalah pengeluaran terbesar bulan ini (Rp{top_cat[1]:,.0f}). Tinjau kategori ini untuk menghemat."
         return {"insight": base}
 
 # ---------------- Reports ----------------
@@ -738,9 +798,12 @@ async def _report_data(user_id: str, month: str) -> dict:
             cat_map[t['category']] = cat_map.get(t['category'], 0) + t['amount']
     bills_raw = await db.bills.find({"user_id": user_id}, {"_id": 0, "user_id": 0}).to_list(500)
     bills = await _decorate_bills(bills_raw, user_id)
+    prev = await db.transactions.find({"user_id": user_id, "month": {"$lt": month}}, {"_id": 0, "amount": 1, "type": 1}).to_list(100000)
+    opening = sum(t['amount'] for t in prev if t['type'] == 'income') - sum(t['amount'] for t in prev if t['type'] == 'expense')
     return {
         "month": month, "income": income, "expense": expense,
         "balance": income - expense, "tx_count": len(txs),
+        "opening_balance": opening, "ending_balance": opening + income - expense,
         "categories": sorted(cat_map.items(), key=lambda x: -x[1]),
         "transactions": [{k: t.get(k) for k in ("date", "type", "title", "category", "amount")} for t in txs],
         "bills": bills,
@@ -757,9 +820,12 @@ async def _report_data_range(user_id: str, start: str, end: str) -> dict:
             cat_map[t['category']] = cat_map.get(t['category'], 0) + t['amount']
     bills_raw = await db.bills.find({"user_id": user_id}, {"_id": 0, "user_id": 0}).to_list(500)
     bills = await _decorate_bills(bills_raw, user_id)
+    before = [t for t in txs_all if (t.get('date') or '')[:10] < start]
+    opening = sum(t['amount'] for t in before if t['type'] == 'income') - sum(t['amount'] for t in before if t['type'] == 'expense')
     return {
         "month": f"{start} s/d {end}", "income": income, "expense": expense,
         "balance": income - expense, "tx_count": len(txs),
+        "opening_balance": opening, "ending_balance": opening + income - expense,
         "categories": sorted(cat_map.items(), key=lambda x: -x[1]),
         "transactions": [{k: t.get(k) for k in ("date", "type", "title", "category", "amount")} for t in txs],
         "bills": bills,
@@ -780,9 +846,11 @@ async def report_text(user=Depends(get_current_user), month: Optional[str] = Non
         f"📊 *LAPORAN KEUANGAN* — {label}",
         f"👤 {user.get('name', '')}",
         "",
+        f"🏦 Saldo Awal: {_fmt_idr(d.get('opening_balance', 0))}",
         f"💰 Pemasukan: {_fmt_idr(d['income'])}",
         f"💸 Pengeluaran: {_fmt_idr(d['expense'])}",
-        f"📈 Saldo: {_fmt_idr(d['balance'])}",
+        f"📈 Selisih Bulan Ini: {_fmt_idr(d['balance'])}",
+        f"🧮 Saldo Akhir (Berjalan): {_fmt_idr(d.get('ending_balance', d['balance']))}",
         f"🧾 Jumlah transaksi: {d['tx_count']}",
     ]
     if d['categories']:
@@ -818,9 +886,11 @@ async def report_pdf(user=Depends(get_current_user), month: Optional[str] = None
         Spacer(1, 12),
     ]
     summary_rows = [
+        ["Saldo Awal", _fmt_idr(d.get('opening_balance', 0))],
         ["Pemasukan", _fmt_idr(d['income'])],
         ["Pengeluaran", _fmt_idr(d['expense'])],
-        ["Saldo", _fmt_idr(d['balance'])],
+        ["Selisih Bulan Ini", _fmt_idr(d['balance'])],
+        ["Saldo Akhir (Berjalan)", _fmt_idr(d.get('ending_balance', d['balance']))],
         ["Jumlah Transaksi", str(d['tx_count'])],
     ]
     t = Table(summary_rows, colWidths=[220, 260])
@@ -869,9 +939,11 @@ async def report_excel(user=Depends(get_current_user), month: Optional[str] = No
     ws['A1'].font = Font(bold=True, size=14)
     ws.append([f"Nama: {user.get('name','')}"])
     ws.append([])
+    ws.append(["Saldo Awal", d.get('opening_balance', 0)])
     ws.append(["Pemasukan", d['income']])
     ws.append(["Pengeluaran", d['expense']])
-    ws.append(["Saldo", d['balance']])
+    ws.append(["Selisih Bulan Ini", d['balance']])
+    ws.append(["Saldo Akhir (Berjalan)", d.get('ending_balance', d['balance'])])
     ws.append(["Jumlah Transaksi", d['tx_count']])
     ws.column_dimensions['A'].width = 26
     ws.column_dimensions['B'].width = 22

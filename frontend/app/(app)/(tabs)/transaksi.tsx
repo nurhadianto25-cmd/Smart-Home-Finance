@@ -8,6 +8,7 @@ import { usePrefs } from "@/src/prefs";
 import { localeTag } from "@/src/i18n";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { PillButton, EmptyState } from "@/src/components/ui";
+import { useConfirm } from "@/src/confirm";
 
 const CAT_ICONS: Record<string, string> = {
   Gaji: "briefcase-check",
@@ -29,23 +30,36 @@ export default function Transaksi() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [type, setType] = useState<"all" | "income" | "expense">("all");
+  const [month, setMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
   const [items, setItems] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const { colors } = useTheme();
   const { t } = usePrefs();
   const styles = useStyles();
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     try {
-      const params = type === "all" ? "" : `?type=${type}`;
-      const list = await api<any[]>(`/transactions${params}`);
+      const qs = `?month=${month}${type === "all" ? "" : `&type=${type}`}`;
+      const list = await api<any[]>(`/transactions${qs}`);
       setItems(list);
     } catch {}
-  }, [type]);
+  }, [type, month]);
 
   useEffect(() => { load(); }, [load]);
 
+  const shiftMonth = (delta: number) => {
+    const y = Number(month.slice(0, 4));
+    const m = Number(month.slice(5, 7));
+    const d = new Date(y, m - 1 + delta, 1);
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const monthLabel = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1)
+    .toLocaleDateString(localeTag(), { month: "long", year: "numeric" });
+
   const onDelete = async (id: string) => {
+    const ok = await confirm({ title: "Hapus Transaksi", message: "Transaksi ini akan dihapus permanen. Lanjutkan?", danger: true });
+    if (!ok) return;
     try { await api(`/transactions/${id}`, { method: "DELETE" }); load(); } catch {}
   };
 
@@ -74,6 +88,11 @@ export default function Transaksi() {
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           <View style={styles.mini}><Text style={styles.miniLabel}>{t("income").toUpperCase()}</Text><Text style={[styles.miniVal, { color: colors.success }]}>{idr(totalIn)}</Text></View>
           <View style={styles.mini}><Text style={styles.miniLabel}>{t("expense").toUpperCase()}</Text><Text style={[styles.miniVal, { color: colors.error }]}>{idr(totalOut)}</Text></View>
+        </View>
+        <View style={styles.monthNav}>
+          <Pressable testID="tx-month-prev" onPress={() => shiftMonth(-1)} style={styles.monthBtn}><Icon name="chevron-left" size={20} color={colors.onSurface} /></Pressable>
+          <Text style={styles.monthLabel} testID="tx-month-label">{monthLabel}</Text>
+          <Pressable testID="tx-month-next" onPress={() => shiftMonth(1)} style={styles.monthBtn}><Icon name="chevron-right" size={20} color={colors.onSurface} /></Pressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 12 }}>
           <PillButton testID="filter-all" label={t("all")} active={type === "all"} onPress={() => setType("all")} />
@@ -118,6 +137,7 @@ export default function Transaksi() {
                         tx_id: t.tx_id, type: t.type, amount: String(t.amount),
                         category: t.category, title: t.title, note: t.note || "",
                         date: t.date, child_id: t.child_id || "",
+                        link_type: t.link_type || "", link_id: t.link_id || "",
                       },
                     })}
                     style={styles.del}
@@ -145,6 +165,9 @@ const useStyles = makeStyles((colors) => ({
   mini: { flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: colors.border, gap: 4 },
   miniLabel: { color: colors.muted, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
   miniVal: { fontSize: 16, fontWeight: "800" },
+  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8, height: 44 },
+  monthBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  monthLabel: { color: colors.onSurface, fontSize: 14, fontWeight: "800" },
   dateHeader: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   row: {
     flexDirection: "row", alignItems: "center", gap: 10,

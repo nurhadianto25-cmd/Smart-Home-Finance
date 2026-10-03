@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { api, idr } from "@/src/api";
 import { colors as C, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { EmptyState, PrimaryButton, ProgressBar } from "@/src/components/ui";
+import { useConfirm } from "@/src/confirm";
 
 const STATUS: any = { belum: { c: C.muted, l: "Belum" }, sebagian: { c: C.warning, l: "Sebagian" }, selesai: { c: C.success, l: "Selesai" } };
 
@@ -14,6 +15,7 @@ export default function Belanja() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useStyles();
+  const confirm = useConfirm();
   const month = new Date().toISOString().slice(0, 7);
   const [items, setItems] = useState<any[]>([]);
   const [modal, setModal] = useState(false);
@@ -43,7 +45,11 @@ export default function Belanja() {
       load();
     } catch {}
   };
-  const del = async (i: any) => { try { await api(`/shopping/${i.item_id}`, { method: "DELETE" }); load(); } catch {} };
+  const del = async (i: any) => {
+    const ok = await confirm({ title: "Hapus Item Belanja", message: `Hapus "${i.name}"?`, danger: true });
+    if (!ok) return;
+    try { await api(`/shopping/${i.item_id}`, { method: "DELETE" }); load(); } catch {}
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
@@ -64,6 +70,7 @@ export default function Belanja() {
           </View>
           <View style={{ marginTop: 10 }}><ProgressBar value={pct} color={pct > 100 ? colors.error : colors.brandPrimary} height={8} /></View>
           <Text style={{ color: colors.muted, fontSize: 11, marginTop: 6 }}>{pct.toFixed(1)}% terpakai</Text>
+          <Text style={{ color: colors.muted, fontSize: 10, marginTop: 4 }}>Realisasi bertambah otomatis dari transaksi yang dialokasikan ke item ini di menu Transaksi.</Text>
         </View>
 
         {items.length === 0 ? (

@@ -7,6 +7,7 @@ import { usePrefs } from "@/src/prefs";
 import { colors as C, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { EmptyState, PillButton, PrimaryButton } from "@/src/components/ui";
 import { formatDateInput, isoToDisplay } from "@/src/utils/date";
+import { useConfirm } from "@/src/confirm";
 
 const STATUS_COLORS: Record<string, string> = {
   segera: C.warning, belum: C.error, terlambat: C.error, lunas: C.success, ditangguhkan: C.muted,
@@ -28,6 +29,7 @@ export default function Tagihan() {
   const { colors } = useTheme();
   const { t } = usePrefs();
   const styles = useStyles();
+  const confirm = useConfirm();
   const [items, setItems] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [refreshing, setRefreshing] = useState(false);
@@ -87,7 +89,11 @@ export default function Tagihan() {
     } catch {}
   };
 
-  const del = async (b: any) => { try { await api(`/bills/${b.bill_id}`, { method: "DELETE" }); load(); } catch {} };
+  const del = async (b: any) => {
+    const ok = await confirm({ title: "Hapus Tagihan", message: `Hapus "${b.name}"? Data ini tidak dapat dikembalikan.`, danger: true });
+    if (!ok) return;
+    try { await api(`/bills/${b.bill_id}`, { method: "DELETE" }); load(); } catch {}
+  };
 
   const grouped: Record<string, any[]> = {};
   for (const b of filtered) {

@@ -109,9 +109,14 @@ export default function Laporan() {
         <Card>
           <SectionHeader title={t("monthlySummary")} />
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <View><Text style={styles.miniLabel}>{t("openingShort")}</Text><Text style={[styles.miniVal, { color: colors.onSurface }]}>{idr(data?.opening_balance ?? 0)}</Text></View>
             <View><Text style={styles.miniLabel}>{t("income")}</Text><Text style={[styles.miniVal, { color: colors.success }]}>{idr(data?.income ?? 0)}</Text></View>
             <View><Text style={styles.miniLabel}>{t("expense")}</Text><Text style={[styles.miniVal, { color: colors.error }]}>{idr(data?.expense ?? 0)}</Text></View>
+          </View>
+          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
             <View><Text style={styles.miniLabel}>{t("difference")}</Text><Text style={[styles.miniVal, { color: (data?.balance ?? 0) >= 0 ? colors.success : colors.error }]}>{idr(data?.balance ?? 0)}</Text></View>
+            <View><Text style={styles.miniLabel}>{t("endingBalance")}</Text><Text style={[styles.miniVal, { color: (data?.cumulative_balance ?? 0) >= 0 ? colors.success : colors.error }]}>{idr(data?.cumulative_balance ?? 0)}</Text></View>
           </View>
         </Card>
 

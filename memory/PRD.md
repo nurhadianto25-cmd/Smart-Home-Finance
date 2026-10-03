@@ -3,6 +3,14 @@
 ## Problem statement
 Family finance app (Expo RN + FastAPI + MongoDB). Imported from GitHub. Iteration 2 added 4 user-requested features.
 
+## Iteration 3 (2026-06) — Transactions as single source of truth
+- Transactions can be ALLOCATED to a budget item via link_type ('bill'|'shopping'|'education'|'savings') + link_id. Realization (bill lunas, shopping/education realized, savings saved) is computed ONLY from explicitly linked transactions — removed fuzzy category matching (fixes education false-paid + overcount).
+- Opening/running balance now carries across months: dashboard health_score, saving_rate and AI insight use cumulative balance, so an income=0 month funded by prior savings is NOT flagged negative/alarming.
+- Reports (text/PDF/Excel + Laporan screen) now show Saldo Awal (opening) & Saldo Akhir (ending running balance).
+- Month navigation added to Dashboard and Transactions (history preserved, nothing deleted).
+- Unified category list (incl. Cicilan/Pinjaman/Tabungan) shared via src/categories.ts.
+- All delete actions now require confirmation via global ConfirmProvider (src/confirm.tsx).
+
 ## Architecture
 - Backend: FastAPI (`/app/backend/server.py`), MongoDB. All routes under `/api`.
 - Frontend: Expo Router. Theme tokens + reactive theming in `src/theme.ts` (makeStyles/useTheme). Global prefs store `src/store.ts`, provider `src/prefs.tsx`, i18n `src/i18n.ts`. Currency-aware `idr()` in `src/api.ts`.

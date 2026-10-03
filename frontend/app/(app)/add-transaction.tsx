@@ -7,14 +7,14 @@ import { api } from "@/src/api";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { PrimaryButton } from "@/src/components/ui";
 import { formatDateInput, isoToDisplay } from "@/src/utils/date";
+import { INCOME_CATS, EXPENSE_CATS } from "@/src/categories";
 
-const INCOME_CATS = ["Gaji", "Bonus", "Investasi", "Lainnya"];
-const EXPENSE_CATS = ["Belanja", "Makanan", "Tagihan", "Transportasi", "Pendidikan", "SPP", "Uang Saku", "Buku & Materi", "Seragam", "Les / Kursus", "Kesehatan", "Hiburan", "Lainnya"];
+type LinkTarget = { link_type: string; link_id: string; label: string; group: string };
 
 export default function AddTransaction() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ tx_id?: string; type?: string; amount?: string; category?: string; title?: string; note?: string; date?: string; child_id?: string }>();
+  const params = useLocalSearchParams<{ tx_id?: string; type?: string; amount?: string; category?: string; title?: string; note?: string; date?: string; child_id?: string; link_type?: string; link_id?: string }>();
   const editing = !!params.tx_id;
   const { colors } = useTheme();
   const styles = useStyles();
@@ -27,7 +27,10 @@ export default function AddTransaction() {
   const [dateInput, setDateInput] = useState<string>("");
   const [dateIso, setDateIso] = useState<string | null>(null);
   const [childId, setChildId] = useState<string | null>((params.child_id as string) || null);
-  const [children, setChildren] = useState<any[]>([]);
+  const [, setChildren] = useState<any[]>([]);
+  const [linkType, setLinkType] = useState<string | null>((params.link_type as string) || null);
+  const [linkId, setLinkId] = useState<string | null>((params.link_id as string) || null);
+  const [targets, setTargets] = useState<LinkTarget[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -47,7 +50,26 @@ export default function AddTransaction() {
       setDateIso(`${yy}-${mm}-${dd}`);
     }
     (async () => {
-      try { setChildren(await api<any[]>("/education/children")); } catch {}
+      const mk = new Date();
+      const mKey = `${mk.getFullYear()}-${String(mk.getMonth() + 1).padStart(2, "0")}`;
+      try {
+        const [bills, shopping, eduItems, savings, kids] = await Promise.all([
+          api<any[]>("/bills").catch(() => []),
+          api<any[]>(`/shopping?month=${mKey}`).catch(() => []),
+          api<any[]>(`/education/items?month=${mKey}`).catch(() => []),
+          api<any[]>("/savings").catch(() => []),
+          api<any[]>("/education/children").catch(() => []),
+        ]);
+        setChildren(kids);
+        const kidName = (id: string) => (kids as any[]).find((k) => k.child_id === id)?.name || "";
+        const tg: LinkTarget[] = [
+          ...(bills as any[]).map((b) => ({ link_type: "bill", link_id: b.bill_id, label: b.name, group: "Tagihan" })),
+          ...(shopping as any[]).map((s) => ({ link_type: "shopping", link_id: s.item_id, label: s.name, group: "Belanja" })),
+          ...(eduItems as any[]).map((e) => ({ link_type: "education", link_id: e.item_id, label: `${e.name}${kidName(e.child_id) ? " · " + kidName(e.child_id) : ""}`, group: "Pendidikan" })),
+          ...(savings as any[]).map((g) => ({ link_type: "savings", link_id: g.goal_id, label: g.name, group: "Tabungan" })),
+        ];
+        setTargets(tg);
+      } catch {}
     })();
   }, []);
 
@@ -69,14 +91,16 @@ export default function AddTransaction() {
       const body = {
         type, amount: n, category, title: title.trim(), note,
         date: `${dateIso}T${new Date().toTimeString().slice(0, 8)}`,
-        child_id: type === "expense" ? childId : null,
+        child_id: null,
+        link_type: type === "expense" ? linkType : null,
+        link_id: type === "expense" ? linkId : null,
       };
       if (editing) {
         await api(`/transactions/${params.tx_id}`, { method: "PUT", body: JSON.stringify(body) });
       } else {
         await api("/transactions", { method: "POST", body: JSON.stringify(body) });
       }
-      router.back();
+      if (router.canGoBack()) router.back(); else router.replace("/(app)/(tabs)/transaksi");
     } catch (e: any) { setErr(e.message || "Gagal simpan"); }
     finally { setBusy(false); }
   };
@@ -94,7 +118,7 @@ export default function AddTransaction() {
         <View style={styles.toggle}>
           <Pressable
             testID="tx-type-income"
-            onPress={() => { setType("income"); if (!INCOME_CATS.includes(category)) setCategory("Gaji"); }}
+            onPress={() => { setType("income"); setLinkType(null); setLinkId(null); if (!INCOME_CATS.includes(category)) setCategory("Gaji"); }}
             style={[styles.toggleBtn, type === "income" && { backgroundColor: `${colors.success}22`, borderColor: colors.success }]}
           >
             <Icon name="arrow-down-bold-circle" size={18} color={colors.success} />
@@ -142,26 +166,43 @@ export default function AddTransaction() {
           ))}
         </View>
 
-        {type === "expense" && children.length > 0 ? (
+        {type === "expense" && targets.length > 0 ? (
           <>
-            <Text style={styles.label}>Anak (opsional — untuk otomatis mengisi realisasi pendidikan)</Text>
+            <Text style={styles.label}>Alokasikan ke Anggaran (opsional)</Text>
+            <Text style={{ color: colors.muted, fontSize: 11, marginTop: -4 }}>Hubungkan pengeluaran ini agar realisasi di menu Tagihan / Belanja / Pendidikan / Tabungan ikut terupdate otomatis.</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               <Pressable
-                onPress={() => setChildId(null)}
-                style={[styles.cat, childId === null && { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary }]}
+                onPress={() => { setLinkType(null); setLinkId(null); }}
+                style={[styles.cat, !linkId && { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary }]}
+                testID="alloc-none"
               >
-                <Text style={[styles.catText, childId === null && { color: colors.onBrandPrimary, fontWeight: "700" }]}>Tidak Terkait</Text>
+                <Text style={[styles.catText, !linkId && { color: colors.onBrandPrimary, fontWeight: "700" }]}>Tidak dialokasikan</Text>
               </Pressable>
-              {children.map(c => (
-                <Pressable
-                  key={c.child_id}
-                  onPress={() => setChildId(c.child_id)}
-                  style={[styles.cat, childId === c.child_id && { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary }]}
-                >
-                  <Text style={[styles.catText, childId === c.child_id && { color: colors.onBrandPrimary, fontWeight: "700" }]}>{c.name}</Text>
-                </Pressable>
-              ))}
             </View>
+            {["Tagihan", "Belanja", "Pendidikan", "Tabungan"].map((group) => {
+              const gt = targets.filter((x) => x.group === group);
+              if (!gt.length) return null;
+              return (
+                <View key={group} style={{ gap: 6 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "800", textTransform: "uppercase" }}>{group}</Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {gt.map((x) => {
+                      const on = linkId === x.link_id && linkType === x.link_type;
+                      return (
+                        <Pressable
+                          key={x.link_type + x.link_id}
+                          onPress={() => { setLinkType(x.link_type); setLinkId(x.link_id); }}
+                          style={[styles.cat, on && { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary }]}
+                          testID={`alloc-${x.link_id}`}
+                        >
+                          <Text style={[styles.catText, on && { color: colors.onBrandPrimary, fontWeight: "700" }]} numberOfLines={1}>{x.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
           </>
         ) : null}
 

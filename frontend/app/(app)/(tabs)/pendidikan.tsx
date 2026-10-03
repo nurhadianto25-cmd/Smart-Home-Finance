@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import { api, idr } from "@/src/api";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Card, EmptyState, PillButton, PrimaryButton, SectionHeader } from "@/src/components/ui";
+import { useConfirm } from "@/src/confirm";
 
 type Child = { child_id: string; name: string; school: string; grade: string; photo_url?: string | null };
 type Item = { item_id: string; child_id: string; name: string; category: string; budget: number; realized: number; auto_realized?: number; status: string; month: string; frequency?: string };
@@ -18,6 +19,7 @@ export default function Pendidikan() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useStyles();
+  const confirm = useConfirm();
   const [children, setChildren] = useState<Child[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [summary, setSummary] = useState<any>(null);
@@ -90,6 +92,8 @@ export default function Pendidikan() {
     } catch {}
   };
   const deleteChild = async (c: Child) => {
+    const ok = await confirm({ title: "Hapus Anak", message: `Hapus "${c.name}" beserta seluruh kebutuhan pendidikannya? Tindakan ini tidak dapat dibatalkan.`, danger: true });
+    if (!ok) return;
     try {
       await api(`/education/children/${c.child_id}`, { method: "DELETE" });
       if (selected === c.child_id) setSelected(null);
@@ -130,6 +134,8 @@ export default function Pendidikan() {
     } catch {}
   };
   const deleteItem = async (it: Item) => {
+    const ok = await confirm({ title: "Hapus Kebutuhan", message: `Hapus "${it.name}"?`, danger: true });
+    if (!ok) return;
     try { await api(`/education/items/${it.item_id}`, { method: "DELETE" }); await load(); await loadItems(); } catch {}
   };
 

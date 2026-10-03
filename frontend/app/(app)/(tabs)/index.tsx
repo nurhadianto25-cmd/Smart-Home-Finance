@@ -24,22 +24,33 @@ export default function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [insight, setInsight] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [month, setMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
 
   const load = useCallback(async () => {
     try {
-      const s = await api<any>("/dashboard/summary");
+      const s = await api<any>(`/dashboard/summary?month=${month}`);
       setData(s);
     } catch (e) { /* noop */ }
-  }, []);
+  }, [month]);
 
   const loadInsight = useCallback(async () => {
+    setInsight(null);
     try {
-      const r = await api<{ insight: string }>("/insights/generate");
+      const r = await api<{ insight: string }>(`/insights/generate?month=${month}`);
       setInsight(r.insight);
     } catch { /* noop */ }
-  }, []);
+  }, [month]);
 
   useEffect(() => { load(); loadInsight(); }, [load, loadInsight]);
+
+  const shiftMonth = (delta: number) => {
+    const y = Number(month.slice(0, 4));
+    const m = Number(month.slice(5, 7));
+    const d = new Date(y, m - 1 + delta, 1);
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const monthLabel = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1)
+    .toLocaleDateString(localeTag(), { month: "long", year: "numeric" });
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -73,6 +84,16 @@ export default function Dashboard() {
           <Pressable testID="open-menu" onPress={() => router.push("/(app)/menu")} style={styles.iconBtn}>
             <Icon name="menu" size={22} color={colors.onSurface} />
           </Pressable>
+        </View>
+
+        {/* Month navigator */}
+        <View style={styles.monthNav}>
+          <Pressable testID="dash-month-prev" onPress={() => shiftMonth(-1)} style={styles.monthBtn}><Icon name="chevron-left" size={20} color={colors.onSurface} /></Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Icon name="calendar-month" size={16} color={colors.brandPrimary} />
+            <Text style={styles.monthLabel} testID="dash-month-label">{monthLabel}</Text>
+          </View>
+          <Pressable testID="dash-month-next" onPress={() => shiftMonth(1)} style={styles.monthBtn}><Icon name="chevron-right" size={20} color={colors.onSurface} /></Pressable>
         </View>
 
         {/* Balance hero */}
@@ -251,6 +272,9 @@ const useStyles = makeStyles((colors) => ({
   welcome: { color: colors.muted, fontSize: 13, marginTop: 2 },
   name: { color: colors.onSurface, fontSize: 22, fontWeight: "800" },
   iconBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8, height: 46 },
+  monthBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  monthLabel: { color: colors.onSurface, fontSize: 15, fontWeight: "800" },
   hero: {
     backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.xl,
     borderWidth: 1, borderColor: `${colors.brandPrimary}55`, alignItems: "center", gap: 6,

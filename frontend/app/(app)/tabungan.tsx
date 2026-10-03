@@ -5,6 +5,7 @@ import Icon from "@react-native-vector-icons/material-design-icons";
 import { api, idr } from "@/src/api";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { EmptyState, PrimaryButton, ProgressBar } from "@/src/components/ui";
+import { useConfirm } from "@/src/confirm";
 
 const GOAL_COLORS = ["#10D96A", "#3D7EFF", "#9B6BFF", "#FF9D3D", "#FF4757", "#F7C948"];
 
@@ -12,6 +13,7 @@ export default function Tabungan() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useStyles();
+  const confirm = useConfirm();
   const [items, setItems] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [modal, setModal] = useState(false);
@@ -35,7 +37,11 @@ export default function Tabungan() {
       setModal(false); load();
     } catch {}
   };
-  const del = async (g: any) => { try { await api(`/savings/${g.goal_id}`, { method: "DELETE" }); load(); } catch {} };
+  const del = async (g: any) => {
+    const ok = await confirm({ title: "Hapus Target", message: `Hapus target "${g.name}"?`, danger: true });
+    if (!ok) return;
+    try { await api(`/savings/${g.goal_id}`, { method: "DELETE" }); load(); } catch {}
+  };
 
   const totalTarget = items.reduce((s, g) => s + g.target, 0);
   const totalSaved = items.reduce((s, g) => s + g.saved, 0);
