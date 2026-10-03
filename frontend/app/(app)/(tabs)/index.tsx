@@ -9,8 +9,9 @@ import { useAuth } from "@/src/auth";
 import { usePrefs } from "@/src/prefs";
 import { localeTag } from "@/src/i18n";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
-import { Card, EmptyState, ProgressBar, SectionHeader, StatCard } from "@/src/components/ui";
+import { Card, EmptyState, ProgressBar, SectionHeader } from "@/src/components/ui";
 import { DonutChart, LineDualChart, ProgressRing } from "@/src/components/charts";
+import { LinearGradient } from "expo-linear-gradient";
 
 const CAT_COLORS = ["#3D7EFF", "#10D96A", "#FF9D3D", "#9B6BFF", "#FF4757", "#F7C948"];
 
@@ -61,6 +62,12 @@ export default function Dashboard() {
   const today = new Date().toLocaleDateString(localeTag(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }).toUpperCase();
   const cats = (data?.expense_by_category || []).slice(0, 6);
   const cf = data?.cashflow || [];
+  const heroStats = [
+    { key: "income", label: t("income"), value: idr(data?.income ?? 0), icon: "arrow-down-bold-circle", color: colors.success },
+    { key: "expense", label: t("expense"), value: idr(data?.expense ?? 0), icon: "arrow-up-bold-circle", color: colors.error },
+    { key: "diff", label: t("difference"), value: idr(data?.balance ?? 0), icon: "swap-vertical-bold", color: colors.info },
+    { key: "rate", label: t("savingRate"), value: `${data?.saving_rate ?? 0}%`, icon: "chart-line-variant", color: colors.brandPrimary },
+  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
@@ -97,13 +104,29 @@ export default function Dashboard() {
         </View>
 
         {/* Balance hero */}
-        <View style={styles.hero}>
-          <View style={styles.heroIcon}><Icon name="wallet" size={26} color={colors.onBrandPrimary} /></View>
-          <Text style={styles.heroLabel}>{t("financialBalance")}</Text>
+        <LinearGradient colors={[`${colors.brandSecondary}2E`, colors.surfaceSecondary, colors.surfaceSecondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          <View style={[styles.houseGlow, { pointerEvents: "none" }]}>
+            <Icon name="home-city" size={56} color={colors.brandSecondary} />
+          </View>
+          <View style={styles.heroIcon}><Icon name="wallet" size={24} color={colors.onBrandPrimary} /></View>
+          <Text style={styles.heroLabel}>FINANCIAL BALANCE</Text>
           <Text style={[styles.heroAmount, { color: (data?.cumulative_balance ?? 0) >= 0 ? colors.success : colors.error }]} testID="dashboard-balance">
             {idr(data?.cumulative_balance ?? 0)}
           </Text>
           <Text style={styles.heroSub}>{t("runningBalanceSub")}</Text>
+          <View style={styles.statGrid}>
+            {heroStats.map((s) => (
+              <View key={s.key} style={styles.statPill} testID={`hero-stat-${s.key}`}>
+                <View style={[styles.statPillIcon, { backgroundColor: `${s.color}22`, borderColor: `${s.color}55` }]}>
+                  <Icon name={s.icon as any} size={15} color={s.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statPillLabel}>{s.label.toUpperCase()}</Text>
+                  <Text style={[styles.statPillVal, { color: s.color }]} numberOfLines={1}>{s.value}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
           <View style={styles.heroDivider} />
           <View style={styles.heroRow}>
             <View style={styles.heroCol}>
@@ -116,17 +139,36 @@ export default function Dashboard() {
               <Text style={[styles.heroColVal, { color: (data?.balance ?? 0) >= 0 ? colors.success : colors.error }]} testID="dashboard-net-month">{idr(data?.balance ?? 0)}</Text>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
-        {/* Stats row */}
-        <View style={{ flexDirection: "row", gap: spacing.md }}>
-          <StatCard testID="stat-income" label={t("income")} value={idr(data?.income ?? 0)} icon="arrow-down-bold-circle" tone="success" />
-          <StatCard testID="stat-expense" label={t("expense")} value={idr(data?.expense ?? 0)} icon="arrow-up-bold-circle" tone="error" />
-        </View>
-        <View style={{ flexDirection: "row", gap: spacing.md }}>
-          <StatCard testID="stat-saving-rate" label={t("savingRate")} value={`${data?.saving_rate ?? 0}%`} icon="chart-line-variant" tone="info" />
-          <StatCard testID="stat-tx" label={t("txCount")} value={String(data?.tx_count ?? 0)} icon="format-list-bulleted" tone="brand" />
-        </View>
+        {/* Kewajiban Bulanan */}
+        <Card>
+          <SectionHeader title="Kewajiban Bulanan" />
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            {[
+              { k: "tagihan", label: "Tagihan", icon: "receipt-text", color: colors.info },
+              { k: "pendidikan", label: "Pendidikan", icon: "school", color: colors.brandPrimary },
+              { k: "belanja", label: "Belanja", icon: "cart", color: colors.warning },
+            ].map((o) => {
+              const ob = data?.obligations?.[o.k] || { total: 0, count: 0 };
+              return (
+                <View key={o.k} style={styles.obliCard} testID={`obli-${o.k}`}>
+                  <View style={[styles.obliIcon, { backgroundColor: `${o.color}22`, borderColor: `${o.color}55` }]}><Icon name={o.icon as any} size={18} color={o.color} /></View>
+                  <Text style={styles.obliLabel}>{o.label.toUpperCase()}</Text>
+                  <Text style={styles.obliVal} numberOfLines={1}>{idr(ob.total)}</Text>
+                  <Text style={styles.obliCount}>{ob.count} item</Text>
+                </View>
+              );
+            })}
+          </View>
+          <LinearGradient colors={[colors.brandPrimary, colors.brandSecondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.commitCard}>
+            <View>
+              <Text style={styles.commitLabel}>TOTAL KOMITMEN BULANAN</Text>
+              <Text style={styles.commitVal} testID="dashboard-commitment">{idr(data?.obligations?.total_commitment ?? 0)}</Text>
+            </View>
+            <View style={styles.commitIcon}><Icon name="wallet-plus" size={22} color={colors.onBrandPrimary} /></View>
+          </LinearGradient>
+        </Card>
 
         {/* Financial Health */}
         <Card>
@@ -276,9 +318,24 @@ const useStyles = makeStyles((colors) => ({
   monthBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   monthLabel: { color: colors.onSurface, fontSize: 15, fontWeight: "800" },
   hero: {
-    backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.xl,
-    borderWidth: 1, borderColor: `${colors.brandPrimary}55`, alignItems: "center", gap: 6,
+    borderRadius: radius.lg, padding: spacing.xl,
+    borderWidth: 1, borderColor: `${colors.brandPrimary}55`, alignItems: "center", gap: 6, overflow: "hidden",
   },
+  houseGlow: { position: "absolute", top: 8, right: 10 },
+  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: spacing.md, alignSelf: "stretch" },
+  statPill: { flexBasis: "47%", flexGrow: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 10 },
+  statPillIcon: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  statPillLabel: { color: colors.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.3 },
+  statPillVal: { fontSize: 13, fontWeight: "800", marginTop: 1 },
+  obliCard: { flex: 1, backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 10, alignItems: "center", gap: 4 },
+  obliIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  obliLabel: { color: colors.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.3 },
+  obliVal: { color: colors.onSurface, fontSize: 13, fontWeight: "800" },
+  obliCount: { color: colors.muted, fontSize: 10 },
+  commitCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.md },
+  commitLabel: { color: colors.onBrandPrimary, fontSize: 10, fontWeight: "800", letterSpacing: 0.5, opacity: 0.92 },
+  commitVal: { color: colors.onBrandPrimary, fontSize: 22, fontWeight: "900", marginTop: 4 },
+  commitIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   heroIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.info, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   heroLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   heroAmount: { fontSize: 30, fontWeight: "800" },

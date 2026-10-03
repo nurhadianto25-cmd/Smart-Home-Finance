@@ -1,0 +1,45 @@
+{
+  "summary": "Full regression on the Jan-2026 iteration (recurring bills+education + 3D dashboard redesign + obligations/commitment + dashboard month-nav + bills due_day + edu back arrow). BACKEND (new /app/backend/tests/test_recurring_obligations.py, 7/7 PASS in 4.8s via EXPO_PUBLIC_BACKEND_URL): (1) POST /api/bills accepts due_day (1-31) without due_date and returns an ISO due_date for the current month. (2) GET /api/bills?month=YYYY-MM returns the same bill in 2027-01, 2027-02, 2027-03 (recurring). (3) After an expense tx with link_type=bill+link_id is added in 2027-02, the bill is status='lunas', auto_paid=true, paid_amount>=amount in 2027-02 ONLY; still 'belum/terlambat' with paid_amount=0 in 2027-01 and 2027-03. (4) Education items recur monthly identically; realized/status move to lunas only in the month a transaction with link_type=education is allocated. (5) GET /api/dashboard/summary?month=YYYY-MM returns 'obligations' with {tagihan:{total,count}, pendidikan:{total,count}, belanja:{total,count}, total_commitment} and total_commitment == sum of the three totals (verified <1 IDR diff). (6) /api/report/text contains 'Saldo Awal' and 'Saldo Akhir'. FRONTEND (Playwright 390x844, qa_shf@example.com/qapass1234, mobile): login works; dashboard renders FINANCIAL BALANCE gradient hero, dashboard-balance, 4 stat pills (hero-stat-income/expense/diff/rate), dashboard-opening + dashboard-net-month, dash-month-prev/label/next shift Oktober 2026 <-> September 2026 and reload summary, Kewajiban Bulanan with obli-tagihan/obli-pendidikan/obli-belanja and TOTAL KOMITMEN BULANAN dashboard-commitment=Rp350.000 (matches the pre-seeded QA Listrik bill). Tagihan screen: bill-month-prev/label/next work (Oktober -> November 2026), add-bill opens modal exposing bill-name/bill-amount/bill-day/bill-submit with the correct 'TANGGAL JATUH TEMPO (1-31) - BERULANG TIAP BULAN' label; creating a 275k due_day=20 bill shows it in both Oktober and November (recurring confirmed in UI). Pendidikan screen: edu-back visible and navigates back to dashboard, edu-month-prev/label/next shift Oktober <-> November 2026. Add-transaction (expense) still shows alloc-none + 3 alloc-<id> targets (4 total alloc buttons rendered). All 14 review-request items verified working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "pointerEvents prop (dashboard LinearGradient children)", "issue": "Dev-only warning: props.pointerEvents is deprecated. Use style.pointerEvents. Reference: /app/frontend/app/(app)/(tabs)/index.tsx (houseGlow View uses pointerEvents='none' prop)."},
+      {"component": "transform-origin DOM warning", "issue": "React-DOM warning on web: 'Invalid DOM property transform-origin. Did you mean transformOrigin?' Likely from a library-level style; harmless on native but noisy in web preview."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_recurring_obligations.py",
+    "/app/test_reports/pytest/recurring.xml",
+    "/app/backend/tests/test_linking.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/backend_test.py"
+  ],
+  "action_items": [
+    "No product fixes required - all 14 review-request items verified end-to-end.",
+    "Optional cleanup: replace deprecated `pointerEvents='none'` prop on the houseGlow View in /app/frontend/app/(app)/(tabs)/index.tsx with `style={{ pointerEvents: 'none' }}` to silence the dev warning.",
+    "Optional code hygiene: server.py is now 1049 lines - split the recurring decorators (_decorate_bills/_decorate_edu_items/_linked_sum) and the dashboard summary route into backend/routers/budgets.py."
+  ],
+  "critical_code_review_comments": [
+    "server.py grew to 1049 lines; recurring decorator + dashboard summary + report builders are the top three extraction candidates.",
+    "_decorate_bills() runs an await _linked_sum() inside a Python for-loop (N+1 against /transactions). For users with many bills, batch this into one aggregate on {user_id, link_type:'bill', month:view_month} and group by link_id.",
+    "Dashboard summary computes bills_total using the DECORATED bill amount (same amount per month, correct) but edu_total uses raw items without month filter - edu items are a single catalog so the count is cross-month; that is consistent with 'recurring' semantics but could be documented."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_recurring_obligations.py (NEW - 7 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7 new recurring+obligations tests pass; prior pytest files remain green on their flows)",
+    "frontend": "100% of in-scope flows (login, dashboard testIDs+month-nav, bill due_day form, bill recurring across months, education back-arrow+month-nav, add-transaction alloc targets)"
+  },
+  "seed_data_creation": "Created and then deleted (via DELETE /api/bills) one QA Rec recurring bill (275k, due_day=20) for qa_shf@example.com. Pre-existing seed from iteration_3 (QA Listrik 350k due 25) is still present and used to populate obli-tagihan on the dashboard.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Primary test account: qa_shf@example.com / qapass1234. Login testIDs are login-email-input / login-password-input / login-submit-button (NOT login-email). Dashboard testIDs: dashboard-balance, hero-stat-{income|expense|diff|rate}, dash-month-{prev|label|next}, dashboard-opening, dashboard-net-month, obli-{tagihan|pendidikan|belanja}, dashboard-commitment. Bills testIDs: bill-month-{prev|label|next}, add-bill, bill-name, bill-amount, bill-day (due_day 1-31 - no bill-date anymore), bill-submit, close-bill-modal, edit-bill-<id>, del-bill-<id>. Education testIDs: edu-back (navigates to /(app)/(tabs)), edu-month-{prev|label|next}, add-child-btn, add-edu-item. The tabs _layout.tsx does NOT define per-tab testIDs - navigate by URL (/(app)/(tabs)/tagihan, /pendidikan, /transaksi) instead of clicking tab buttons. Env current month in container is Oktober 2026. Run backend tests with: EXPO_PUBLIC_BACKEND_URL=https://smart-wallet-299.preview.emergentagent.com pytest --override-ini='addopts=' /app/backend/tests/test_recurring_obligations.py -v",
+  "rca_of_issue": "No new product bugs. The two React/web console warnings (pointerEvents prop + transform-origin DOM property) are dev-only noise from the web preview renderer and do not affect native builds or functional behavior."
+}

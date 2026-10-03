@@ -6,8 +6,9 @@ import { api, idr } from "@/src/api";
 import { usePrefs } from "@/src/prefs";
 import { colors as C, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { EmptyState, PillButton, PrimaryButton } from "@/src/components/ui";
-import { formatDateInput, isoToDisplay } from "@/src/utils/date";
+import { isoToDisplay } from "@/src/utils/date";
 import { useConfirm } from "@/src/confirm";
+import { localeTag } from "@/src/i18n";
 
 const STATUS_COLORS: Record<string, string> = {
   segera: C.warning, belum: C.error, terlambat: C.error, lunas: C.success, ditangguhkan: C.muted,
@@ -22,7 +23,7 @@ const KINDS = [
   { k: "lainnya", labelKey: "billLainnya", icon: "dots-horizontal", color: C.muted },
 ];
 
-const emptyForm = { name: "", kind: "rutin", category: "Umum", amount: "", due_date_display: "", due_date_iso: "" as string | null, status: "belum", note: "" };
+const emptyForm = { name: "", kind: "rutin", category: "Umum", amount: "", due_day: "", status: "belum", note: "" };
 
 export default function Tagihan() {
   const insets = useSafeAreaInsets();
@@ -35,11 +36,18 @@ export default function Tagihan() {
   const [refreshing, setRefreshing] = useState(false);
   const [modal, setModal] = useState<{ open: boolean; edit?: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState<any>(emptyForm);
+  const [month, setMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
 
   const load = useCallback(async () => {
-    try { setItems(await api<any[]>("/bills")); } catch {}
-  }, []);
+    try { setItems(await api<any[]>(`/bills?month=${month}`)); } catch {}
+  }, [month]);
   useEffect(() => { load(); }, [load]);
+  const shiftMonth = (delta: number) => {
+    const y = Number(month.slice(0, 4)); const m = Number(month.slice(5, 7));
+    const d = new Date(y, m - 1 + delta, 1);
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const monthLabel = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).toLocaleDateString(localeTag(), { month: "long", year: "numeric" });
 
   const today = new Date();
   const withDaysLeft = items.map(b => {
@@ -60,21 +68,17 @@ export default function Tagihan() {
   const openEdit = (b: any) => {
     setForm({
       name: b.name, kind: b.kind, category: b.category, amount: String(b.amount),
-      due_date_display: isoToDisplay(b.due_date), due_date_iso: (b.due_date || "").slice(0, 10),
-      status: b.status === "lunas" && !b.auto_paid ? "lunas" : "belum",
-      note: b.note || "",
+      due_day: String(b.due_day || (b.due_date || "").slice(8, 10) || ""),
+      status: "belum", note: b.note || "",
     });
     setModal({ open: true, edit: b });
   };
-  const onDateChange = (t: string) => {
-    const { display, iso } = formatDateInput(t);
-    setForm((f: any) => ({ ...f, due_date_display: display, due_date_iso: iso }));
-  };
   const submit = async () => {
-    if (!form.name || !form.amount || !form.due_date_iso) return;
+    const day = parseInt(form.due_day, 10);
+    if (!form.name || !form.amount || !day || day < 1 || day > 31) return;
     const body = {
       name: form.name, kind: form.kind, category: form.category,
-      amount: parseFloat(form.amount), due_date: form.due_date_iso,
+      amount: parseFloat(form.amount), due_day: day,
       status: form.status, note: form.note,
     };
     try {
@@ -125,6 +129,12 @@ export default function Tagihan() {
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           <MiniStat label={t("count")} value={String(items.length)} color={colors.info} icon="format-list-bulleted" />
           <MiniStat label={t("soon")} value={String(dueSoon)} color={colors.warning} icon="bell-ring" />
+        </View>
+
+        <View style={styles.monthNav}>
+          <Pressable testID="bill-month-prev" onPress={() => shiftMonth(-1)} style={styles.monthNavBtn}><Icon name="chevron-left" size={20} color={colors.onSurface} /></Pressable>
+          <Text style={styles.monthNavLabel} testID="bill-month-label">{monthLabel}</Text>
+          <Pressable testID="bill-month-next" onPress={() => shiftMonth(1)} style={styles.monthNavBtn}><Icon name="chevron-right" size={20} color={colors.onSurface} /></Pressable>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 12 }}>
@@ -197,15 +207,15 @@ export default function Tagihan() {
               <TextInput style={styles.input} value={form.category} onChangeText={t2 => setForm((f: any) => ({ ...f, category: t2 }))} placeholder="Tagihan" placeholderTextColor={colors.muted} />
               <Text style={styles.label}>{t("amountRp")}</Text>
               <TextInput testID="bill-amount" style={styles.input} value={form.amount} onChangeText={t2 => setForm((f: any) => ({ ...f, amount: t2.replace(/[^0-9]/g, "") }))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.muted} />
-              <Text style={styles.label}>{t("dueDate")}</Text>
+              <Text style={styles.label}>Tanggal Jatuh Tempo (1-31) — berulang tiap bulan</Text>
               <TextInput
-                testID="bill-date"
+                testID="bill-day"
                 style={styles.input}
-                value={form.due_date_display}
-                onChangeText={onDateChange}
+                value={form.due_day}
+                onChangeText={(t2) => setForm((f: any) => ({ ...f, due_day: t2.replace(/[^0-9]/g, "").slice(0, 2) }))}
                 keyboardType="numeric"
-                maxLength={10}
-                placeholder="DD-MM-YYYY"
+                maxLength={2}
+                placeholder="cth. 20"
                 placeholderTextColor={colors.muted}
               />
               <PrimaryButton label={modal.edit ? t("saveChanges") : t("save")} onPress={submit} testID="bill-submit" />
@@ -253,4 +263,7 @@ const useStyles = makeStyles((colors) => ({
   modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, maxHeight: "88%", borderWidth: 1, borderColor: colors.border },
   label: { color: colors.muted, fontSize: 11, fontWeight: "700", textTransform: "uppercase", marginTop: 4 },
   input: { backgroundColor: colors.surfaceTertiary, color: colors.onSurface, borderRadius: radius.md, paddingHorizontal: 14, height: 46, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
+  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8, height: 46 },
+  monthNavBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  monthNavLabel: { color: colors.onSurface, fontSize: 15, fontWeight: "800" },
 }));

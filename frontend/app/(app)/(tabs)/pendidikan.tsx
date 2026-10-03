@@ -3,10 +3,12 @@ import { View, Text, ScrollView, Pressable, RefreshControl, TextInput, Modal, Ke
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "@react-native-vector-icons/material-design-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import { api, idr } from "@/src/api";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Card, EmptyState, PillButton, PrimaryButton, SectionHeader } from "@/src/components/ui";
 import { useConfirm } from "@/src/confirm";
+import { localeTag } from "@/src/i18n";
 
 type Child = { child_id: string; name: string; school: string; grade: string; photo_url?: string | null };
 type Item = { item_id: string; child_id: string; name: string; category: string; budget: number; realized: number; auto_realized?: number; status: string; month: string; frequency?: string };
@@ -18,6 +20,7 @@ function monthKey(d = new Date()) { return `${d.getFullYear()}-${String(d.getMon
 export default function Pendidikan() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const router = useRouter();
   const styles = useStyles();
   const confirm = useConfirm();
   const [children, setChildren] = useState<Child[]>([]);
@@ -144,6 +147,13 @@ export default function Pendidikan() {
   const totalRemaining = summary?.total_remaining || 0;
   const percentUsed = totalBudget > 0 ? Math.min(100, (totalRealized / totalBudget) * 100) : 0;
 
+  const shiftMonth = (delta: number) => {
+    const y = Number(month.slice(0, 4)); const m = Number(month.slice(5, 7));
+    const d = new Date(y, m - 1 + delta, 1);
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const monthLabel = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).toLocaleDateString(localeTag(), { month: "long", year: "numeric" });
+
   const selectedChild = children.find(c => c.child_id === selected);
 
   return (
@@ -152,9 +162,19 @@ export default function Pendidikan() {
         contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: spacing.lg, paddingBottom: insets.bottom + 24, gap: spacing.md }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); await loadItems(); setRefreshing(false); }} tintColor={colors.brandPrimary} />}
       >
-        <View>
-          <Text style={styles.title}>Pendidikan</Text>
-          <Text style={styles.sub}>Kelola kebutuhan pendidikan keluarga Anda</Text>
+        <View style={styles.headerRow}>
+          <Pressable testID="edu-back" onPress={() => router.push("/(app)/(tabs)")} style={styles.backBtn}>
+            <Icon name="arrow-left" size={22} color={colors.onSurface} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Pendidikan</Text>
+            <Text style={styles.sub}>Anggaran bulanan — berulang tiap bulan</Text>
+          </View>
+        </View>
+        <View style={styles.monthNav}>
+          <Pressable testID="edu-month-prev" onPress={() => shiftMonth(-1)} style={styles.monthNavBtn}><Icon name="chevron-left" size={20} color={colors.onSurface} /></Pressable>
+          <Text style={styles.monthNavLabel} testID="edu-month-label">{monthLabel}</Text>
+          <Pressable testID="edu-month-next" onPress={() => shiftMonth(1)} style={styles.monthNavBtn}><Icon name="chevron-right" size={20} color={colors.onSurface} /></Pressable>
         </View>
 
         {/* TOTAL SALDO ANGGARAN — semua anak */}
@@ -370,6 +390,11 @@ function Mini({ label, value, color }: any) {
 const useStyles = makeStyles((colors) => ({
   title: { color: colors.onSurface, fontSize: 24, fontWeight: "800" },
   sub: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8, height: 46 },
+  monthNavBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  monthNavLabel: { color: colors.onSurface, fontSize: 15, fontWeight: "800" },
   heroLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
   heroValue: { color: colors.brandPrimary, fontSize: 28, fontWeight: "900", marginTop: 6 },
   progressTrack: { height: 8, backgroundColor: colors.surfaceTertiary, borderRadius: 4, overflow: "hidden", marginTop: 12 },

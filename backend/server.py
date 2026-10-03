@@ -8,6 +8,7 @@ import io
 import logging
 import uuid
 import re
+import calendar
 import httpx
 import jwt
 import bcrypt
@@ -147,13 +148,15 @@ class BillIn(BaseModel):
     kind: Literal['rutin', 'cicilan', 'pinjaman', 'lainnya'] = 'rutin'
     category: str
     amount: float
-    due_date: str
+    due_date: Optional[str] = None
+    due_day: Optional[int] = None
     status: Literal['segera', 'belum', 'terlambat', 'lunas', 'ditangguhkan'] = 'belum'
     note: Optional[str] = ''
 
 class BillOut(BillIn):
     bill_id: str
     auto_paid: bool = False
+    paid_amount: float = 0
 
 class SavingsIn(BaseModel):
     name: str
@@ -427,50 +430,86 @@ def _match_bill_tx(bill: dict, txs: list) -> bool:
             return True
     return False
 
-async def _decorate_bills(bills: list, user_id: str) -> list:
+def _bill_due_day(b: dict) -> int:
+    dd = b.get('due_day')
+    if dd:
+        try:
+            return max(1, min(31, int(dd)))
+        except Exception:
+            pass
+    try:
+        return int((b.get('due_date') or '')[8:10])
+    except Exception:
+        return 1
+
+def _month_due_date(view_month: str, day: int):
+    y = int(view_month[:4]); m = int(view_month[5:7])
+    last = calendar.monthrange(y, m)[1]
+    from datetime import date as _date
+    return _date(y, m, min(day, last))
+
+async def _decorate_bills(bills: list, user_id: str, view_month: str) -> list:
+    """Recurring bills: one bill repeats every month. Status is computed per
+    view month, 'lunas' only when an expense is allocated to it that month."""
     today = now_utc().date()
+    current_month = now_utc().strftime('%Y-%m')
     out = []
     for b in bills:
-        month = _bill_month(b)
         amt = float(b.get('amount') or 0)
-        linked = await _linked_sum(user_id, 'bill', b.get('bill_id', ''), month)
-        status = b.get('status', 'belum')
+        linked = await _linked_sum(user_id, 'bill', b.get('bill_id', ''), view_month)
+        day = _bill_due_day(b)
+        due = _month_due_date(view_month, day)
         auto_paid = False
-        if amt > 0 and linked >= amt * 0.99 and status != 'lunas':
+        if amt > 0 and linked >= amt * 0.99:
             status = 'lunas'
             auto_paid = True
-        elif status != 'lunas':
-            try:
-                d = datetime.fromisoformat(b['due_date']).date()
-                if d < today:
-                    status = 'terlambat'
-                elif (d - today).days <= 7:
-                    status = 'segera'
-            except Exception:
-                pass
-        out.append({**b, "status": status, "auto_paid": auto_paid})
+        elif view_month < current_month:
+            status = 'terlambat'
+        elif view_month > current_month:
+            status = 'belum'
+        else:
+            if due < today:
+                status = 'terlambat'
+            elif (due - today).days <= 7:
+                status = 'segera'
+            else:
+                status = 'belum'
+        out.append({**b, "due_date": due.isoformat(), "due_day": day, "status": status, "auto_paid": auto_paid, "paid_amount": linked})
     return out
 
 @api_router.get('/bills', response_model=List[BillOut])
-async def list_bills(user=Depends(get_current_user)):
+async def list_bills(user=Depends(get_current_user), month: Optional[str] = None):
+    view_month = month or now_utc().strftime('%Y-%m')
     items = await db.bills.find({"user_id": user['user_id']}, {"_id": 0, "user_id": 0}).to_list(500)
-    return await _decorate_bills(items, user['user_id'])
+    return await _decorate_bills(items, user['user_id'], view_month)
 
 @api_router.post('/bills', response_model=BillOut)
 async def create_bill(body: BillIn, user=Depends(get_current_user)):
     bill_id = new_id('bill')
-    doc = {"bill_id": bill_id, "user_id": user['user_id'], **body.dict()}
+    data = body.dict()
+    if not data.get('due_day') and data.get('due_date'):
+        try:
+            data['due_day'] = int(str(data['due_date'])[8:10])
+        except Exception:
+            data['due_day'] = 1
+    doc = {"bill_id": bill_id, "user_id": user['user_id'], **data}
     await db.bills.insert_one(doc.copy())
     d = {k: v for k, v in doc.items() if k != 'user_id'}
-    dec = await _decorate_bills([d], user['user_id'])
+    dec = await _decorate_bills([d], user['user_id'], now_utc().strftime('%Y-%m'))
     return dec[0]
 
 @api_router.put('/bills/{bill_id}', response_model=BillOut)
 async def update_bill(bill_id: str, body: BillIn, user=Depends(get_current_user)):
-    await db.bills.update_one({"bill_id": bill_id, "user_id": user['user_id']}, {"$set": body.dict()})
+    data = body.dict()
+    if not data.get('due_day') and data.get('due_date'):
+        try:
+            data['due_day'] = int(str(data['due_date'])[8:10])
+        except Exception:
+            data['due_day'] = 1
+    await db.bills.update_one({"bill_id": bill_id, "user_id": user['user_id']}, {"$set": data})
     doc = await db.bills.find_one({"bill_id": bill_id, "user_id": user['user_id']}, {"_id": 0, "user_id": 0})
     if not doc: raise HTTPException(404, "Not found")
-    dec = await _decorate_bills([doc], user['user_id'])
+    dec = await _decorate_bills([doc], user['user_id'], now_utc().strftime('%Y-%m'))
     return dec[0]
 
 @api_router.delete('/bills/{bill_id}')
@@ -553,11 +592,13 @@ def _match_edu_tx(item: dict, txs: list) -> float:
             total += float(t.get('amount') or 0)
     return total
 
-async def _decorate_edu_items(items: list, user_id: str) -> list:
+async def _decorate_edu_items(items: list, user_id: str, view_month: str) -> list:
+    """Recurring education items: repeat every month, realized only from
+    transactions allocated to them within the view month."""
     out = []
     for it in items:
-        auto = await _linked_sum(user_id, 'education', it['item_id'], it.get('month'))
-        realized = max(float(it.get('realized') or 0), auto)
+        auto = await _linked_sum(user_id, 'education', it['item_id'], view_month)
+        realized = auto
         budget = float(it.get('budget') or 0)
         if realized <= 0:
             status = 'belum'
@@ -570,11 +611,11 @@ async def _decorate_edu_items(items: list, user_id: str) -> list:
 
 @api_router.get('/education/items', response_model=List[EducationItemOut])
 async def list_edu_items(user=Depends(get_current_user), child_id: Optional[str] = None, month: Optional[str] = None):
+    view_month = month or now_utc().strftime('%Y-%m')
     q = {"user_id": user['user_id']}
     if child_id: q['child_id'] = child_id
-    if month: q['month'] = month
     items = await db.education_items.find(q, {"_id": 0, "user_id": 0}).to_list(500)
-    return await _decorate_edu_items(items, user['user_id'])
+    return await _decorate_edu_items(items, user['user_id'], view_month)
 
 @api_router.post('/education/items', response_model=EducationItemOut)
 async def create_edu_item(body: EducationItemIn, user=Depends(get_current_user)):
@@ -582,7 +623,7 @@ async def create_edu_item(body: EducationItemIn, user=Depends(get_current_user))
     doc = {"item_id": item_id, "user_id": user['user_id'], **body.dict()}
     await db.education_items.insert_one(doc.copy())
     d = {k: v for k, v in doc.items() if k != 'user_id'}
-    dec = await _decorate_edu_items([d], user['user_id'])
+    dec = await _decorate_edu_items([d], user['user_id'], body.month or now_utc().strftime('%Y-%m'))
     return dec[0]
 
 @api_router.put('/education/items/{item_id}', response_model=EducationItemOut)
@@ -592,7 +633,7 @@ async def update_edu_item(item_id: str, body: EducationItemIn, user=Depends(get_
     )
     if res.matched_count == 0: raise HTTPException(404, "Not found")
     doc = await db.education_items.find_one({"item_id": item_id, "user_id": user['user_id']}, {"_id": 0, "user_id": 0})
-    dec = await _decorate_edu_items([doc], user['user_id'])
+    dec = await _decorate_edu_items([doc], user['user_id'], body.month or now_utc().strftime('%Y-%m'))
     return dec[0]
 
 @api_router.delete('/education/items/{item_id}')
@@ -605,8 +646,8 @@ async def education_summary(user=Depends(get_current_user), month: Optional[str]
     if not month:
         month = now_utc().strftime('%Y-%m')
     children = await db.education_children.find({"user_id": user['user_id']}, {"_id": 0, "user_id": 0}).to_list(200)
-    items = await db.education_items.find({"user_id": user['user_id'], "month": month}, {"_id": 0, "user_id": 0}).to_list(500)
-    items = await _decorate_edu_items(items, user['user_id'])
+    items = await db.education_items.find({"user_id": user['user_id']}, {"_id": 0, "user_id": 0}).to_list(500)
+    items = await _decorate_edu_items(items, user['user_id'], month)
     per_child = []
     total_budget = 0.0
     total_realized = 0.0
@@ -695,7 +736,7 @@ async def dashboard_summary(user=Depends(get_current_user), month: Optional[str]
         score = max(0, min(100, score))
 
     bills_raw = await db.bills.find({"user_id": user['user_id']}, {"_id": 0, "user_id": 0}).to_list(500)
-    bills = await _decorate_bills(bills_raw, user['user_id'])
+    bills = await _decorate_bills(bills_raw, user['user_id'], month)
     upcoming = []
     today = now_utc().date()
     for b in bills:
@@ -710,8 +751,20 @@ async def dashboard_summary(user=Depends(get_current_user), month: Optional[str]
             pass
     upcoming.sort(key=lambda x: x['days_left'])
 
-    savings = await db.savings.find({"user_id": user['user_id']}, {"_id": 0, "user_id": 0}).to_list(200)
+    savings_raw = await db.savings.find({"user_id": user['user_id']}, {"_id": 0, "user_id": 0}).to_list(200)
+    savings = await _decorate_savings(savings_raw, user['user_id'])
     total_bills = sum(b['amount'] for b in bills if b['status'] != 'lunas')
+    edu_items = await db.education_items.find({"user_id": user['user_id']}, {"_id": 0, "user_id": 0}).to_list(500)
+    edu_total = sum(float(i.get('budget') or 0) for i in edu_items)
+    shop_items = await db.shopping.find({"user_id": user['user_id'], "month": month}, {"_id": 0}).to_list(500)
+    shop_total = sum(float(i.get('budget') or 0) for i in shop_items)
+    bills_total = sum(b['amount'] for b in bills)
+    obligations = {
+        "tagihan": {"total": bills_total, "count": len(bills)},
+        "pendidikan": {"total": edu_total, "count": len(edu_items)},
+        "belanja": {"total": shop_total, "count": len(shop_items)},
+        "total_commitment": bills_total + edu_total + shop_total,
+    }
 
     return {
         "month": month, "income": income, "expense": expense, "balance": balance,
@@ -721,6 +774,7 @@ async def dashboard_summary(user=Depends(get_current_user), month: Optional[str]
         "expense_by_category": categories, "cashflow": cashflow,
         "upcoming_bills": upcoming[:5], "savings": savings,
         "total_bills": total_bills, "tx_count": len(txs),
+        "obligations": obligations,
     }
 
 # ---------------- AI Insight ----------------
@@ -797,7 +851,7 @@ async def _report_data(user_id: str, month: str) -> dict:
         if t['type'] == 'expense':
             cat_map[t['category']] = cat_map.get(t['category'], 0) + t['amount']
     bills_raw = await db.bills.find({"user_id": user_id}, {"_id": 0, "user_id": 0}).to_list(500)
-    bills = await _decorate_bills(bills_raw, user_id)
+    bills = await _decorate_bills(bills_raw, user_id, month)
     prev = await db.transactions.find({"user_id": user_id, "month": {"$lt": month}}, {"_id": 0, "amount": 1, "type": 1}).to_list(100000)
     opening = sum(t['amount'] for t in prev if t['type'] == 'income') - sum(t['amount'] for t in prev if t['type'] == 'expense')
     return {
@@ -819,7 +873,7 @@ async def _report_data_range(user_id: str, start: str, end: str) -> dict:
         if t['type'] == 'expense':
             cat_map[t['category']] = cat_map.get(t['category'], 0) + t['amount']
     bills_raw = await db.bills.find({"user_id": user_id}, {"_id": 0, "user_id": 0}).to_list(500)
-    bills = await _decorate_bills(bills_raw, user_id)
+    bills = await _decorate_bills(bills_raw, user_id, now_utc().strftime('%Y-%m'))
     before = [t for t in txs_all if (t.get('date') or '')[:10] < start]
     opening = sum(t['amount'] for t in before if t['type'] == 'income') - sum(t['amount'] for t in before if t['type'] == 'expense')
     return {

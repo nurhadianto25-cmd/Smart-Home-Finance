@@ -3,6 +3,12 @@
 ## Problem statement
 Family finance app (Expo RN + FastAPI + MongoDB). Imported from GitHub. Iteration 2 added 4 user-requested features.
 
+## Iteration 4 (2026-06) — 3D dashboard redesign + recurring bills/education
+- Dashboard redesigned to match user 3D reference: gradient hero (glowing running balance + house glow), 2x2 stat grid (Pemasukan/Pengeluaran/Selisih/Saving Rate), month navigator, "Kewajiban Bulanan" (Tagihan/Pendidikan/Belanja cards) + gradient "Total Komitmen Bulanan". Backend dashboard summary now returns `obligations`.
+- Bills are RECURRING: created once with a due DAY (1-31), repeat every month; a bill is 'lunas' for a month only when an expense is allocated to it that month, pending again next month. Backend _decorate_bills(view_month) + due_day model.
+- Education items RECURRING the same way; Education screen gained back-to-dashboard arrow + month navigator.
+- Savings & Shopping realization already derive from allocated transactions.
+
 ## Iteration 3 (2026-06) — Transactions as single source of truth
 - Transactions can be ALLOCATED to a budget item via link_type ('bill'|'shopping'|'education'|'savings') + link_id. Realization (bill lunas, shopping/education realized, savings saved) is computed ONLY from explicitly linked transactions — removed fuzzy category matching (fixes education false-paid + overcount).
 - Opening/running balance now carries across months: dashboard health_score, saving_rate and AI insight use cumulative balance, so an income=0 month funded by prior savings is NOT flagged negative/alarming.
