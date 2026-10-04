@@ -9,6 +9,15 @@ import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { Card, EmptyState, PillButton, PrimaryButton, SectionHeader } from "@/src/components/ui";
 import { useConfirm } from "@/src/confirm";
 import { localeTag } from "@/src/i18n";
+import { LinearGradient } from "expo-linear-gradient";
+import { DonutChart, ProgressRing } from "@/src/components/charts";
+
+const EDU_COLORS = ["#9B6BFF", "#3D7EFF", "#FF9D3D", "#10D96A", "#FF4757", "#F7C948"];
+function statusLabel(s: string) {
+  if (s === "lunas") return "Lunas";
+  if (s === "sebagian") return "Sebagian";
+  return "Belum";
+}
 
 type Child = { child_id: string; name: string; school: string; grade: string; photo_url?: string | null };
 type Item = { item_id: string; child_id: string; name: string; category: string; budget: number; realized: number; auto_realized?: number; status: string; month: string; frequency?: string };
@@ -154,6 +163,11 @@ export default function Pendidikan() {
   };
   const monthLabel = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).toLocaleDateString(localeTag(), { month: "long", year: "numeric" });
 
+  const catMap: Record<string, number> = {};
+  for (const it of items) catMap[it.category] = (catMap[it.category] || 0) + (it.budget || 0);
+  const catDist = Object.entries(catMap).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  const upcomingCount = items.filter((i) => i.status !== "lunas").length;
+
   const selectedChild = children.find(c => c.child_id === selected);
 
   return (
@@ -177,19 +191,37 @@ export default function Pendidikan() {
           <Pressable testID="edu-month-next" onPress={() => shiftMonth(1)} style={styles.monthNavBtn}><Icon name="chevron-right" size={20} color={colors.onSurface} /></Pressable>
         </View>
 
-        {/* TOTAL SALDO ANGGARAN — semua anak */}
-        <Card>
-          <Text style={styles.heroLabel}>TOTAL SALDO ANGGARAN — SEMUA ANAK</Text>
+        {/* Education summary hero */}
+        <LinearGradient colors={[`${colors.brandPrimary}38`, colors.surfaceSecondary, colors.surfaceSecondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.eduHero}>
+          <View style={[styles.eduHeroGlow, { pointerEvents: "none" }]}>
+            <Icon name="school" size={64} color={colors.brandPrimary} />
+          </View>
+          <View style={styles.eduHeroIcon}><Icon name="book-education" size={22} color={colors.onBrandPrimary} /></View>
+          <Text style={styles.heroLabel}>TOTAL ANGGARAN PENDIDIKAN</Text>
           <Text style={styles.heroValue}>{idr(totalBudget)}</Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${percentUsed}%` }]} />
+          <Text style={{ color: colors.muted, fontSize: 12 }}>{monthLabel}</Text>
+          <View style={styles.eduStatGrid}>
+            <View style={styles.eduStat}>
+              <View style={[styles.eduStatIcon, { backgroundColor: `${colors.success}22`, borderColor: `${colors.success}55` }]}><Icon name="check-circle" size={16} color={colors.success} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.eduStatLabel}>SUDAH DIBAYAR</Text><Text style={[styles.eduStatVal, { color: colors.success }]} numberOfLines={1}>{idr(totalRealized)}</Text></View>
+            </View>
+            <View style={styles.eduStat}>
+              <View style={[styles.eduStatIcon, { backgroundColor: `${colors.warning}22`, borderColor: `${colors.warning}55` }]}><Icon name="clock-alert" size={16} color={colors.warning} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.eduStatLabel}>BELUM DIBAYAR</Text><Text style={[styles.eduStatVal, { color: colors.warning }]} numberOfLines={1}>{idr(totalRemaining)}</Text></View>
+            </View>
           </View>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 8 }}>
-            <Mini label="Terpakai" value={idr(totalRealized)} color={colors.error} />
-            <Mini label="Sisa" value={idr(totalRemaining)} color={colors.success} />
-            <Mini label="Bulan" value={month} color={colors.info} />
+          <View style={styles.eduProgressWrap}>
+            <View style={{ alignItems: "center", justifyContent: "center" }}>
+              <ProgressRing value={percentUsed} size={92} thickness={10} color={colors.brandPrimary} />
+              <View style={[styles.eduProgressCenter, { pointerEvents: "none" }]}><Text style={styles.eduProgressPct}>{percentUsed.toFixed(0)}%</Text></View>
+            </View>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ color: colors.onSurface, fontWeight: "800", fontSize: 13 }}>Progress Pembayaran</Text>
+              <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>{idr(totalRealized)} dari {idr(totalBudget)} anggaran bulan ini telah direalisasikan.</Text>
+              <View style={styles.eduKewajiban}><Icon name="bell-ring" size={12} color={colors.info} /><Text style={{ color: colors.info, fontSize: 11, fontWeight: "700" }}>{upcomingCount} kewajiban belum lunas</Text></View>
+            </View>
           </View>
-        </Card>
+        </LinearGradient>
 
         {/* Per anak ringkas */}
         {summary?.per_child?.length ? (
@@ -278,9 +310,13 @@ export default function Pendidikan() {
                       <Text style={styles.itemName}>{it.name}</Text>
                       <Text style={styles.itemSub}>{it.category} • {it.frequency}</Text>
                     </View>
-                    <View style={{ alignItems: "flex-end" }}>
+                    <View style={{ alignItems: "flex-end", gap: 4 }}>
+                      <View style={[styles.statusChip, { backgroundColor: `${stColor}22`, borderColor: `${stColor}55` }]}>
+                        <Icon name={statusIcon(it.status)} size={11} color={stColor} />
+                        <Text style={[styles.statusChipText, { color: stColor }]}>{statusLabel(it.status)}</Text>
+                      </View>
                       <Text style={styles.itemBudget}>{idr(it.budget)}</Text>
-                      <Text style={[styles.itemReal, { color: stColor }]}>{idr(it.realized)}</Text>
+                      <Text style={styles.itemSisa}>Sisa {idr(Math.max(0, it.budget - it.realized))}</Text>
                     </View>
                   </View>
                   <View style={styles.progressTrackSmall}>
@@ -304,6 +340,24 @@ export default function Pendidikan() {
         ) : (
           <EmptyState icon="account-plus" title="Tambah anggota dulu" hint="Buat data anak untuk mulai mengelola anggaran pendidikan." />
         )}
+
+        {selectedChild && catDist.length > 0 ? (
+          <Card>
+            <SectionHeader title="Ringkasan per Kategori" />
+            <View style={{ flexDirection: "row", gap: spacing.lg, alignItems: "center" }}>
+              <DonutChart data={catDist.map((c, i) => ({ value: c.value, color: EDU_COLORS[i % EDU_COLORS.length] }))} size={128} />
+              <View style={{ flex: 1, gap: 6 }}>
+                {catDist.slice(0, 6).map((c, i) => (
+                  <View key={c.label} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: EDU_COLORS[i % EDU_COLORS.length] }} />
+                    <Text style={{ color: colors.onSurface, fontSize: 12, flex: 1 }} numberOfLines={1}>{c.label}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>{idr(c.value)}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </Card>
+        ) : null}
       </ScrollView>
 
       {/* Child Modal */}
@@ -377,16 +431,6 @@ function statusIcon(s: string) {
   return "circle-outline";
 }
 
-function Mini({ label, value, color }: any) {
-  const { colors } = useTheme();
-  return (
-    <View>
-      <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>{label}</Text>
-      <Text style={{ color, fontWeight: "800", fontSize: 13, marginTop: 2 }}>{value}</Text>
-    </View>
-  );
-}
-
 const useStyles = makeStyles((colors) => ({
   title: { color: colors.onSurface, fontSize: 24, fontWeight: "800" },
   sub: { color: colors.muted, fontSize: 12, marginTop: 2 },
@@ -428,4 +472,19 @@ const useStyles = makeStyles((colors) => ({
   input: { backgroundColor: colors.surfaceTertiary, color: colors.onSurface, borderRadius: radius.md, paddingHorizontal: 14, height: 46, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
   photoPicker: { alignSelf: "center", marginBottom: 8 },
   photoEmpty: { width: 96, height: 96, borderRadius: 48, backgroundColor: `${colors.brandPrimary}22`, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: `${colors.brandPrimary}55`, borderStyle: "dashed" },
+  eduHero: { borderRadius: radius.lg, padding: spacing.xl, borderWidth: 1, borderColor: `${colors.brandPrimary}55`, gap: 4, overflow: "hidden" },
+  eduHeroGlow: { position: "absolute", top: 8, right: 10, opacity: 0.9 },
+  eduHeroIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center", marginBottom: 6 },
+  eduStatGrid: { flexDirection: "row", gap: 8, marginTop: spacing.md },
+  eduStat: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 10 },
+  eduStatIcon: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  eduStatLabel: { color: colors.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.3 },
+  eduStatVal: { fontSize: 13, fontWeight: "800", marginTop: 1 },
+  eduProgressWrap: { flexDirection: "row", alignItems: "center", gap: spacing.lg, marginTop: spacing.md, backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
+  eduProgressCenter: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
+  eduProgressPct: { color: colors.onSurface, fontSize: 20, fontWeight: "900" },
+  eduKewajiban: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  statusChip: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, height: 20, borderRadius: radius.pill, borderWidth: 1 },
+  statusChipText: { fontSize: 10, fontWeight: "800" },
+  itemSisa: { color: colors.muted, fontSize: 11 },
 }));
