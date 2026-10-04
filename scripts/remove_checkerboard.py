@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
-OUT = "/app/frontend/assets/images/savings"
+OUT = os.getenv("SHF_OUT", "/app/frontend/assets/images/savings")
 
 def process(path):
     im = Image.open(path).convert("RGB")

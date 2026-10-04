@@ -49,3 +49,10 @@ Family finance app (Expo RN + FastAPI + MongoDB). Imported from GitHub. Iteratio
 - Added 3D avatar as default profile fallback on Dashboard + Pengaturan.
 - Backend: SavingsIn gained optional `monthly` and `note` fields (for monthly deposit estimate + description). Added SavingsLineChart to src/components/charts.tsx.
 
+
+## 2026-10-04 — Laporan 3D Redesign
+- Rebuilt Laporan screen to match 3D reference: gradient hero with SVG 3D chart art (ReportHeroArt), period selector (Hari Ini/Minggu Ini/Bulan Ini/Tahun Ini/Custom) with "Dibandingkan dengan" comparison, 4 stat cards (Pemasukan/Pengeluaran/Selisih/Saving Rate) with vs-prev deltas, Cash Flow line chart (6/12 bulan) with totals, Pengeluaran per Kategori donut + legend, Breakdown Pengeluaran list, Kewajiban Finansial (grouped by bill kind + % of income), Kalender Keuangan (month grid with income/expense dots + daily activity), Tabungan yearly bar chart + stats, Financial Insights, Export (Excel/PDF working via backend; CSV generated client-side), Riwayat Laporan (year + month chips).
+- All report metrics computed client-side from /transactions, /bills, /savings for full period/comparison flexibility.
+- Added charts: BarsChart, ReportHeroArt, ExportArt in src/components/charts.tsx.
+- NOTE: Bespoke raster 3D illustrations (report hero + export box) could not be generated — Emergent Universal LLM key budget exhausted (max $1.00 reached). Used polished SVG 3D-style art as substitute; can regenerate rasters after top-up. Scripts ready: gen_savings_assets.py (items report_hero, export_box) + remove_checkerboard.py (both honor SHF_OUT env).
+

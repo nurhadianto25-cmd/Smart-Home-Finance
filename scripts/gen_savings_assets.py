@@ -4,7 +4,7 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 load_dotenv("/app/backend/.env")
 API_KEY = os.getenv("EMERGENT_LLM_KEY")
-OUT = "/app/frontend/assets/images/savings"
+OUT = os.getenv("SHF_OUT", "/app/frontend/assets/images/savings")
 os.makedirs(OUT, exist_ok=True)
 
 STYLE = ("3D rendered glossy claymorphism illustration, smooth rounded shapes, soft studio lighting, "
@@ -22,6 +22,8 @@ ITEMS = {
     "piggy": "a glossy violet purple piggy bank with a single gold coin dropping into the slot on its back",
     "target": "a round red and white dartboard target with a single golden dart stuck in the center bullseye",
     "avatar": "a friendly 3D cartoon portrait avatar of a smiling Indonesian man in his 30s with short neat black hair, light beard stubble, wearing a smart-casual dark navy shirt, Pixar animation style, head and shoulders, circular framing",
+    "report_hero": "a cluster of glossy 3D bar charts with purple blue and green bars of different heights, a white report document sheet with a checklist and a rising line graph on it, and a colorful 3D donut pie chart in blue green orange and purple, all arranged together on a glowing translucent blue glass platform, business analytics dashboard theme",
+    "export_box": "a glossy blue open filing box or document tray holding several colorful report folders and sheets with small bar charts on them, a couple of papers floating out, data export theme",
 }
 
 async def gen(name, desc):
