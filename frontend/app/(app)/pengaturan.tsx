@@ -7,6 +7,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/src/auth";
 import { usePrefs } from "@/src/prefs";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { LinearGradient } from "expo-linear-gradient";
 import { Card, PrimaryButton, SectionHeader } from "@/src/components/ui";
 
 export default function Pengaturan() {
@@ -72,11 +73,15 @@ export default function Pengaturan() {
           </View>
           <View style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
             <Pressable onPress={editing ? pickPhoto : undefined} testID="profile-photo" style={styles.avatarWrap}>
-              {picture ? <Image source={{ uri: picture }} style={styles.avatarImg} /> : (
-                <View style={styles.avatar}><Icon name="account" size={32} color={colors.onBrandPrimary} /></View>
-              )}
+              <LinearGradient colors={[colors.brandPrimary, colors.brandSecondary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.avatarRing}>
+                {picture ? (
+                  <Image source={{ uri: picture }} style={styles.avatarImg} />
+                ) : (
+                  <View style={styles.avatarInner}><Icon name="account" size={34} color="#FFFFFF" /></View>
+                )}
+              </LinearGradient>
               {editing ? (
-                <View style={styles.avatarBadge}><Icon name="camera" size={12} color={colors.onBrandPrimary} /></View>
+                <View style={styles.avatarBadge}><Icon name="camera" size={12} color="#FFFFFF" /></View>
               ) : null}
             </Pressable>
             <View style={{ flex: 1 }}>
@@ -210,10 +215,11 @@ const useStyles = makeStyles((colors) => ({
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   title: { color: colors.onSurface, fontSize: 20, fontWeight: "800" },
   sub: { color: colors.muted, fontSize: 12 },
-  avatarWrap: { width: 64, height: 64 },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
-  avatarImg: { width: 64, height: 64, borderRadius: 32 },
-  avatarBadge: { position: "absolute", right: -2, bottom: -2, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.surface },
+  avatarWrap: { width: 72, height: 72 },
+  avatarRing: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", padding: 3, shadowColor: colors.brandPrimary, shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
+  avatarInner: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
+  avatarImg: { width: 66, height: 66, borderRadius: 33 },
+  avatarBadge: { position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.surface },
   input: { backgroundColor: colors.surfaceTertiary, color: colors.onSurface, borderRadius: radius.md, paddingHorizontal: 14, height: 44, borderWidth: 1, borderColor: colors.border, fontSize: 15 },
   editBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, height: 30, borderRadius: radius.pill, backgroundColor: `${colors.brandPrimary}22`, borderWidth: 1, borderColor: `${colors.brandPrimary}55` },
   editText: { color: colors.brandPrimary, fontSize: 12, fontWeight: "700" },
