@@ -42,3 +42,10 @@ Family finance app (Expo RN + FastAPI + MongoDB). Imported from GitHub. Iteratio
 
 ## Next tasks
 - Optional: finish i18n coverage on belanja/pendidikan/tabungan inner labels.
+
+## 2026-10-04 — Tabungan 3D Redesign
+- Redesigned Tabungan screen to match 3D reference: gradient hero with 3D savings-jar illustration, horizontal stat cards (Total/Aktif/Setoran/Progress ring/Tercapai), goal cards with per-type 3D icons (shield, suitcase, graduation, car, house, piggy), "X bulan lagi" badge, savings growth line chart, distribution donut, insight list, milestone tracker (25/50/75/100), deposits list (Setoran Terakhir / Tabungan Rutin tabs), and "Cara Kerja" steps.
+- Generated 3D illustration assets via Gemini Nano Banana (gemini-3.1-flash-image-preview), post-processed to transparent PNGs in /app/frontend/assets/images/savings/ (hero, shield, vacation, education, car, house, piggy, target, avatar). Scripts: /app/scripts/gen_savings_assets.py, remove_checkerboard.py.
+- Added 3D avatar as default profile fallback on Dashboard + Pengaturan.
+- Backend: SavingsIn gained optional `monthly` and `note` fields (for monthly deposit estimate + description). Added SavingsLineChart to src/components/charts.tsx.
+

@@ -187,6 +187,8 @@ class SavingsIn(BaseModel):
     saved: float = 0
     color: Optional[str] = '#10D96A'
     icon: Optional[str] = 'piggy-bank'
+    monthly: Optional[float] = 0
+    note: Optional[str] = ''
 
 class SavingsOut(SavingsIn):
     goal_id: str

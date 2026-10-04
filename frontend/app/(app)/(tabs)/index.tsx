@@ -106,7 +106,7 @@ export default function Dashboard() {
             {user?.picture ? (
               <Image source={{ uri: user.picture }} style={styles.avatarImg} contentFit="cover" testID="dashboard-user-photo" />
             ) : (
-              <Glossy grad={[colors.brandPrimary, colors.brandSecondary]} icon="account" size={46} iconSize={26} rad={23} />
+              <Image source={require("../../../assets/images/savings/avatar.png")} style={styles.avatarImg} contentFit="cover" testID="dashboard-user-photo" />
             )}
           </Pressable>
           <View style={{ flex: 1 }}>

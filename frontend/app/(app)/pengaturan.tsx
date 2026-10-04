@@ -77,7 +77,7 @@ export default function Pengaturan() {
                 {picture ? (
                   <Image source={{ uri: picture }} style={styles.avatarImg} />
                 ) : (
-                  <View style={styles.avatarInner}><Icon name="account" size={34} color="#FFFFFF" /></View>
+                  <Image source={require("../../assets/images/savings/avatar.png")} style={styles.avatarImg} />
                 )}
               </LinearGradient>
               {editing ? (

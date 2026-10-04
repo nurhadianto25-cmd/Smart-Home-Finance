@@ -1,6 +1,7 @@
 import React from "react";
 import { View } from "react-native";
-import Svg, { Circle, G, Path, Line, Rect, Text as SvgText } from "react-native-svg";
+import Svg, { Circle, G, Path, Line, Rect, Text as SvgText, Defs, Stop, LinearGradient as SvgGrad } from "react-native-svg";
+
 import { useTheme } from "@/src/theme";
 
 export function DonutChart({
@@ -159,6 +160,65 @@ export function GroupedBarChart({
           </G>
         );
       })}
+    </Svg>
+  );
+}
+
+
+export function SavingsLineChart({
+  data,
+  labels,
+  color,
+  width = 320,
+  height = 180,
+}: { data: number[]; labels: string[]; color?: string; width?: number; height?: number }) {
+  const { colors } = useTheme();
+  const col = color ?? colors.brandPrimary;
+  const pad = { l: 34, r: 14, t: 18, b: 24 };
+  const w = width - pad.l - pad.r;
+  const h = height - pad.t - pad.b;
+  const max = Math.max(1, ...data);
+  const n = Math.max(data.length, 1);
+  const x = (i: number) => pad.l + (n === 1 ? w : (i * w) / (n - 1));
+  const y = (v: number) => pad.t + h - (v / max) * h;
+  const linePath = data.map((v, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(v)}`).join(" ");
+  const areaPath = `${linePath} L ${x(data.length - 1)} ${pad.t + h} L ${x(0)} ${pad.t + h} Z`;
+  const fmt = (v: number) => (v >= 1_000_000 ? `${Math.round(v / 1_000_000)} jt` : v >= 1000 ? `${Math.round(v / 1000)} rb` : `${Math.round(v)}`);
+  const last = data[data.length - 1] ?? 0;
+  return (
+    <Svg width={width} height={height}>
+      <Defs>
+        <SvgGrad id="savfill" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={col} stopOpacity={0.35} />
+          <Stop offset="1" stopColor={col} stopOpacity={0.02} />
+        </SvgGrad>
+      </Defs>
+      {[0, 0.5, 1].map((f, i) => (
+        <G key={i}>
+          <Line x1={pad.l} x2={pad.l + w} y1={pad.t + h * f} y2={pad.t + h * f} stroke={colors.divider} strokeWidth={1} />
+          <SvgText x={pad.l - 6} y={pad.t + h * f + 3} fontSize={8} fill={colors.muted} textAnchor="end">
+            {fmt(max * (1 - f))}
+          </SvgText>
+        </G>
+      ))}
+      {data.length > 1 ? <Path d={areaPath} fill="url(#savfill)" /> : null}
+      <Path d={linePath} stroke={col} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+      {data.map((v, i) => (
+        <Circle key={i} cx={x(i)} cy={y(v)} r={i === data.length - 1 ? 4.5 : 3} fill={i === data.length - 1 ? col : colors.surface} stroke={col} strokeWidth={2} />
+      ))}
+      {data.length ? (
+        <G>
+          <Rect x={Math.min(x(data.length - 1) - 34, width - 72)} y={Math.max(2, y(last) - 26)} width={66} height={18} rx={9} fill={col} />
+          <SvgText x={Math.min(x(data.length - 1) - 1, width - 39)} y={Math.max(2, y(last) - 26) + 12.5} fontSize={9} fontWeight="700" fill={colors.onBrandPrimary} textAnchor="middle">
+            {`Rp${fmt(last)}`}
+          </SvgText>
+        </G>
+      ) : null}
+      {labels.map((l, i) => (
+        <SvgText key={l + i} x={x(i)} y={height - 6} fontSize={9} fill={colors.muted} textAnchor="middle">
+          {l}
+        </SvgText>
+      ))}
     </Svg>
   );
 }
