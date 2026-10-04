@@ -70,3 +70,9 @@ Family finance app (Expo RN + FastAPI + MongoDB). Imported from GitHub. Iteratio
 - Store extended with full PrefsState; prefs.tsx persists all keys. Added expo-local-authentication, expo-document-picker.
 - NOTE: raster 3D illustrations still unavailable (Universal LLM key budget exhausted) — used SVG 3D-style art.
 
+
+## 2026-10-04 — Scrollable Bottom Tab Bar
+- Replaced the fixed 4-tab bottom bar with a horizontally scrollable bar showing all 8 main menus: Dashboard, Transaksi, Belanja, Tagihan, Pendidikan, Tabungan, Laporan, Analisis (swipe left/right). Pengaturan stays in the 3-dot menu (unchanged).
+- Moved belanja/tabungan/laporan/analisis screens from (app)/ into (app)/(tabs)/ as real tab routes; fixed tabungan relative asset requires (../../ → ../../../). URLs unchanged so 3-dot menu router.push links still resolve.
+- New src/components/scrollable-tabbar.tsx (custom Tabs tabBar) + rewritten (tabs)/_layout.tsx declaring 8 Tabs.Screen in order. Active tab highlighted; respects bottom safe-area inset.
+

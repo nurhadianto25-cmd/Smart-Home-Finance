@@ -12,15 +12,15 @@ import { DonutChart, ProgressRing, SavingsLineChart } from "@/src/components/cha
 import { useConfirm } from "@/src/confirm";
 import { localeTag } from "@/src/i18n";
 
-const HERO_IMG = require("../../assets/images/savings/hero.png");
+const HERO_IMG = require("../../../assets/images/savings/hero.png");
 const ASSET: Record<string, any> = {
-  shield: require("../../assets/images/savings/shield.png"),
-  vacation: require("../../assets/images/savings/vacation.png"),
-  education: require("../../assets/images/savings/education.png"),
-  car: require("../../assets/images/savings/car.png"),
-  house: require("../../assets/images/savings/house.png"),
-  piggy: require("../../assets/images/savings/piggy.png"),
-  target: require("../../assets/images/savings/target.png"),
+  shield: require("../../../assets/images/savings/shield.png"),
+  vacation: require("../../../assets/images/savings/vacation.png"),
+  education: require("../../../assets/images/savings/education.png"),
+  car: require("../../../assets/images/savings/car.png"),
+  house: require("../../../assets/images/savings/house.png"),
+  piggy: require("../../../assets/images/savings/piggy.png"),
+  target: require("../../../assets/images/savings/target.png"),
 };
 
 const GOAL_TYPES = [
