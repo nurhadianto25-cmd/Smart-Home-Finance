@@ -1,6 +1,6 @@
 import React from "react";
 import { View } from "react-native";
-import Svg, { Circle, G, Path, Line, Text as SvgText } from "react-native-svg";
+import Svg, { Circle, G, Path, Line, Rect, Text as SvgText } from "react-native-svg";
 import { useTheme } from "@/src/theme";
 
 export function DonutChart({
@@ -109,6 +109,56 @@ export function LineDualChart({
           {l}
         </SvgText>
       ))}
+    </Svg>
+  );
+}
+
+export function GroupedBarChart({
+  data,
+  colorA,
+  colorB,
+  width = 320,
+  height = 150,
+  highlightLast = true,
+}: {
+  data: { label: string; a: number; b: number }[];
+  colorA: string;
+  colorB: string;
+  width?: number;
+  height?: number;
+  highlightLast?: boolean;
+}) {
+  const { colors } = useTheme();
+  const pad = { l: 8, r: 8, t: 12, b: 22 };
+  const w = width - pad.l - pad.r;
+  const h = height - pad.t - pad.b;
+  const max = Math.max(1, ...data.map((d) => Math.max(d.a, d.b)));
+  const n = Math.max(data.length, 1);
+  const group = w / n;
+  const bw = Math.min(10, group * 0.22);
+  const gap = 4;
+  const yOf = (v: number) => pad.t + h - (v / max) * h;
+  return (
+    <Svg width={width} height={height}>
+      {[0, 0.5, 1].map((f, i) => (
+        <Line key={i} x1={pad.l} x2={pad.l + w} y1={pad.t + h * f} y2={pad.t + h * f} stroke={colors.divider} strokeWidth={1} />
+      ))}
+      {data.map((d, i) => {
+        const cx = pad.l + group * i + group / 2;
+        const last = highlightLast && i === data.length - 1;
+        const op = last ? 1 : 0.55;
+        const aH = Math.max(2, pad.t + h - yOf(d.a));
+        const bH = Math.max(2, pad.t + h - yOf(d.b));
+        return (
+          <G key={d.label + i}>
+            <Rect x={cx - bw - gap / 2} y={yOf(d.a)} width={bw} height={aH} rx={bw / 2} fill={colorA} opacity={op} />
+            <Rect x={cx + gap / 2} y={yOf(d.b)} width={bw} height={bH} rx={bw / 2} fill={colorB} opacity={op} />
+            <SvgText x={cx} y={height - 6} fontSize={9} fontWeight={last ? "700" : "400"} fill={last ? colors.onSurface : colors.muted} textAnchor="middle">
+              {d.label}
+            </SvgText>
+          </G>
+        );
+      })}
     </Svg>
   );
 }
