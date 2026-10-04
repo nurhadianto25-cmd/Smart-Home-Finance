@@ -324,3 +324,70 @@ export function ExportArt({ width = 120, height = 92 }: { width?: number; height
   );
 }
 
+
+export function SettingsHeroArt({ width = 150, height = 112 }: { width?: number; height?: number }) {
+  return (
+    <Svg width={width} height={height} viewBox="0 0 150 112">
+      <Defs>
+        <SvgGrad id="setplat" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor="#7C4DFF" stopOpacity={0.6} /><Stop offset="1" stopColor="#3D7EFF" stopOpacity={0.12} /></SvgGrad>
+        <SvgGrad id="gearA" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor="#B79BFF" /><Stop offset="1" stopColor="#6D3FF0" /></SvgGrad>
+        <SvgGrad id="gearB" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor="#5AA0FF" /><Stop offset="1" stopColor="#2A6BE0" /></SvgGrad>
+        <SvgGrad id="shieldG" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#4A8CFF" /><Stop offset="1" stopColor="#2347C9" /></SvgGrad>
+      </Defs>
+      <Path d="M18 90 L75 70 L134 90 L80 110 Z" fill="url(#setplat)" />
+      <Gear cx={44} cy={46} r={20} teeth={9} fill="url(#gearA)" hole={8} />
+      <Gear cx={70} cy={30} r={13} teeth={8} fill="url(#gearB)" hole={5} />
+      {/* shield with lock */}
+      <Path d="M96 34 L120 26 L120 56 Q120 74 108 82 Q96 74 96 56 Z" fill="url(#shieldG)" />
+      <Rect x={102} y={50} width={14} height={13} rx={2.5} fill="#F4F7FF" />
+      <Path d="M104 50 L104 46 Q104 42 109 42 Q114 42 114 46 L114 50" fill="none" stroke="#F4F7FF" strokeWidth={2.4} />
+      <Circle cx={109} cy={56} r={2.2} fill="#2347C9" />
+      {/* plant */}
+      <Rect x={124} y={70} width={14} height={14} rx={2} fill="#C07A4A" />
+      <Path d="M131 70 Q131 58 124 54 Q130 60 131 70" fill="#2BE085" />
+      <Path d="M131 70 Q131 56 139 52 Q134 60 131 70" fill="#13C06E" />
+    </Svg>
+  );
+}
+
+function Gear({ cx, cy, r, teeth, fill, hole }: { cx: number; cy: number; r: number; teeth: number; fill: string; hole: number }) {
+  const pts: string[] = [];
+  const tw = 0.5;
+  for (let i = 0; i < teeth; i++) {
+    const a0 = (i / teeth) * Math.PI * 2;
+    const a1 = ((i + tw) / teeth) * Math.PI * 2;
+    const a2 = ((i + 0.5) / teeth) * Math.PI * 2;
+    const a3 = ((i + 1) / teeth) * Math.PI * 2;
+    const ro = r; const ri = r * 0.78;
+    pts.push(`${cx + ri * Math.cos(a0)},${cy + ri * Math.sin(a0)}`);
+    pts.push(`${cx + ro * Math.cos(a0)},${cy + ro * Math.sin(a0)}`);
+    pts.push(`${cx + ro * Math.cos(a1)},${cy + ro * Math.sin(a1)}`);
+    pts.push(`${cx + ri * Math.cos(a2)},${cy + ri * Math.sin(a2)}`);
+    pts.push(`${cx + ri * Math.cos(a3)},${cy + ri * Math.sin(a3)}`);
+  }
+  return (
+    <G>
+      <Path d={`M${pts.join(" L")} Z`} fill={fill} />
+      <Circle cx={cx} cy={cy} r={hole} fill="#101A3A" opacity={0.55} />
+    </G>
+  );
+}
+
+export function AboutHouseArt({ width = 96, height = 78 }: { width?: number; height?: number }) {
+  return (
+    <Svg width={width} height={height} viewBox="0 0 96 78">
+      <Defs>
+        <SvgGrad id="roofg" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor="#9B6BFF" /><Stop offset="1" stopColor="#6D3FF0" /></SvgGrad>
+        <SvgGrad id="wallg" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#5AA0FF" /><Stop offset="1" stopColor="#2A6BE0" /></SvgGrad>
+      </Defs>
+      <Path d="M8 66 L48 52 L88 66 L88 70 L48 76 L8 70 Z" fill="#2347C9" opacity={0.4} />
+      <Rect x={26} y={34} width={36} height={30} rx={3} fill="url(#wallg)" />
+      <Path d="M20 36 L44 20 L68 36 Z" fill="url(#roofg)" />
+      <Rect x={38} y={46} width={12} height={18} rx={2} fill="#F4F7FF" opacity={0.9} />
+      <Circle cx={74} cy={48} r={11} fill="#F7C948" />
+      <SvgText x={74} y={52} fontSize={12} fontWeight="700" fill="#8A5A00" textAnchor="middle">$</SvgText>
+      <Rect x={66} y={58} width={16} height={8} rx={2} fill="#F0A93A" />
+    </Svg>
+  );
+}
+

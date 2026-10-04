@@ -11,6 +11,7 @@ import { ErrorBoundary } from "@/src/components/error-boundary";
 import { queryClient } from "@/src/query-client";
 import { AuthProvider, useAuth } from "@/src/auth";
 import { PrefsProvider } from "@/src/prefs";
+import { AppLockGate } from "@/src/applock";
 import { useTheme } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
@@ -49,6 +50,7 @@ function ThemedRoot() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.surface }}>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       <AuthGate />
+      <AppLockGate />
     </GestureHandlerRootView>
   );
 }

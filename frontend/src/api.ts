@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import { getPrefs, USD_RATE } from "./store";
+import { getPrefs, RATES, CURRENCY_META } from "./store";
 
 const KEY = "shf_token";
 
@@ -51,10 +51,9 @@ export async function api<T = any>(path: string, opts: RequestInit = {}): Promis
 }
 
 export const idr = (n: number) => {
-  const v = Math.round(n || 0);
-  if (getPrefs().currency === "USD") {
-    const usd = (n || 0) / USD_RATE;
-    return `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-  return `Rp${v.toLocaleString("id-ID")}`;
+  const cur = getPrefs().currency;
+  const meta = CURRENCY_META[cur] || CURRENCY_META.IDR;
+  const v = (n || 0) / (RATES[cur] || 1);
+  if (cur === "IDR") return `Rp${Math.round(v).toLocaleString("id-ID")}`;
+  return `${meta.symbol}${v.toLocaleString(meta.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };

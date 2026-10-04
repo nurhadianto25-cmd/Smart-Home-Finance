@@ -56,3 +56,17 @@ Family finance app (Expo RN + FastAPI + MongoDB). Imported from GitHub. Iteratio
 - Added charts: BarsChart, ReportHeroArt, ExportArt in src/components/charts.tsx.
 - NOTE: Bespoke raster 3D illustrations (report hero + export box) could not be generated — Emergent Universal LLM key budget exhausted (max $1.00 reached). Used polished SVG 3D-style art as substitute; can regenerate rasters after top-up. Scripts ready: gen_savings_assets.py (items report_hero, export_box) + remove_checkerboard.py (both honor SHF_OUT env).
 
+
+## 2026-10-04 — Pengaturan 3D Redesign + Fitur
+- Rebuilt Pengaturan to match 3D reference with all 9 sections + Pendidikan Daftar Anak: gradient hero w/ SVG 3D art (SettingsHeroArt: gears+shield+plant), 3D avatar, Pusat Bantuan.
+- Working features: Profil (Nama Lengkap→backend; Nama Panggilan/Username→prefs; Mata Uang/Format Tanggal/Bahasa dropdowns), Ubah Foto (backend) + child photo upload.
+- Keamanan: Username edit, PIN set/change (4-digit keypad modal), Kunci Otomatis, Biometrik (expo-local-authentication hardware check), Kunci Saat Diminimalkan, Logout. New AppLockGate (src/applock.tsx) mounted in app/_layout enforces PIN+biometric lock on cold start / background / auto-lock.
+- Tampilan: Tema Gelap/Terang/Mengikuti Perangkat (themeMode→scheme via Appearance), Mode Dashboard, Efek Animasi, Ukuran Teks, Kerapatan — all persisted.
+- Kategori: custom category CRUD (src/customcats.ts, persisted via storage) with icon/color picker, Pengeluaran/Pemasukan tabs.
+- Data & Penyimpanan: Backup (export JSON of all data, download/share) + Restore (import JSON, recreate records via DocumentPicker/web file), Auto Backup + Frekuensi (prefs), Informasi Penyimpanan (live counts + data size).
+- Manajemen Data: Hapus Transaksi Tertentu (→transaksi), Bersihkan Data Periode (date-range delete), Hapus Semua Data (full wipe w/ confirm), Pulihkan Data Terakhir (restore).
+- Mata Uang: IDR/USD/SGD/EUR/MYR — idr() now multi-currency (RATES + CURRENCY_META in store.ts); switching converts amounts app-wide instantly.
+- Tentang Aplikasi (version + info modals + mailto) and Ringkasan Aplikasi (6 live stat cards).
+- Store extended with full PrefsState; prefs.tsx persists all keys. Added expo-local-authentication, expo-document-picker.
+- NOTE: raster 3D illustrations still unavailable (Universal LLM key budget exhausted) — used SVG 3D-style art.
+
