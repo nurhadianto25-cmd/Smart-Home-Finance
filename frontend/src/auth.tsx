@@ -16,6 +16,8 @@ type Ctx = {
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
   updateProfile: (patch: { name?: string; whatsapp?: string; picture?: string }) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (email: string, otp: string, newPassword: string) => Promise<void>;
 };
 
 const AuthCtx = createContext<Ctx | null>(null);
@@ -181,8 +183,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(me);
   }, []);
 
+  const forgotPassword = useCallback(async (email: string) => {
+    await api("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+  }, []);
+
+  const resetPassword = useCallback(async (email: string, otp: string, newPassword: string) => {
+    const r = await api<{ token: string; user: User }>("/auth/reset-password", {
+      method: "POST", body: JSON.stringify({ email, otp, new_password: newPassword }),
+    });
+    await finalize(r.token, r.user);
+  }, [finalize]);
+
   return (
-    <AuthCtx.Provider value={{ user, loading, loginEmail, registerEmail, loginGoogle, logout, refreshMe, updateProfile }}>
+    <AuthCtx.Provider value={{ user, loading, loginEmail, registerEmail, loginGoogle, logout, refreshMe, updateProfile, forgotPassword, resetPassword }}>
       {children}
     </AuthCtx.Provider>
   );

@@ -75,6 +75,10 @@ export default function Login() {
 
           <PrimaryButton label={busy ? "Memproses..." : "Masuk"} onPress={onLogin} disabled={busy} testID="login-submit-button" />
 
+          <Pressable testID="go-forgot" onPress={() => router.push("/(auth)/forgot")} style={styles.forgotWrap}>
+            <Text style={styles.forgot}>Lupa sandi?</Text>
+          </Pressable>
+
           <View style={styles.divider}>
             <View style={styles.line} /><Text style={styles.orText}>atau</Text><View style={styles.line} />
           </View>
@@ -117,6 +121,8 @@ const useStyles = makeStyles((colors) => ({
     borderWidth: 1, borderColor: colors.border, fontSize: 15,
   },
   err: { color: colors.error, fontSize: 13 },
+  forgotWrap: { alignItems: "center", marginTop: 2 },
+  forgot: { color: colors.brandPrimary, fontSize: 13, fontWeight: "700" },
   divider: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: spacing.sm },
   line: { flex: 1, height: 1, backgroundColor: colors.border },
   orText: { color: colors.muted, fontSize: 12 },

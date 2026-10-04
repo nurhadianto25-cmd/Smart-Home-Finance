@@ -1,0 +1,41 @@
+{
+  "summary": "Verified the Jan-2026 auth hardening (durable JWT + distinct login errors + forgot/reset-password via emailed OTP). BACKEND (new /app/backend/tests/test_auth_reset.py, 9/9 PASS in 6.77s via EXPO_PUBLIC_BACKEND_URL): (1) POST /api/auth/login - unknown email -> 404 'Akun belum terdaftar...', wrong password -> 401 'Kata sandi salah...', correct creds -> 200 {token,user}. (2) Register-then-login succeeds (original bug no longer reproduces). (3) /api/auth/me accepts the login token (JWT durability). (4) POST /api/auth/forgot-password - unknown email -> 404 'Email tidak terdaftar.', registered email -> 200 {ok:true} (email send succeeded). (5) POST /api/auth/reset-password full flow with OTP recovered via hmac-sha256(OTP_PEPPER,'%06d') brute-force against db.password_resets.otp_hash: wrong OTP -> 400 'Kode tidak valid...', correct OTP -> 200 returns token+user, old password login -> 401, new password login -> 200, reusing the same OTP -> 400 (single-use enforced). FRONTEND (Playwright 390x844): Login screen renders 'Lupa sandi?' link (testID=go-forgot) which navigates to /(auth)/forgot. Step 1 (forgot-email-input + forgot-send-button) correctly surfaces the backend 404 as the inline error 'Email tidak terdaftar.' (testID=forgot-error). Submitting delivered@resend.dev (a real registered user) advances to Step 2 where OTP input (forgot-otp-input), new password input (forgot-password-input), reset button (forgot-reset-button), resend link (forgot-resend) and info toast 'Kode verifikasi 6 digit telah dikirim...' (forgot-info) all render. Backend-driven Step 2 completion was already validated by the pytest reset-password flow.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "pointerEvents prop", "issue": "Dev-only warning: 'props.pointerEvents is deprecated. Use style.pointerEvents.' Reference: /app/frontend/app/(app)/(tabs)/index.tsx (houseGlow View). Pre-existing from iteration_4."},
+      {"component": "transform-origin DOM warning", "issue": "React-DOM warning on web: 'Invalid DOM property transform-origin. Did you mean transformOrigin?' Likely from a library-level style; harmless on native but produces a noisy toast overlay in web preview."},
+      {"component": "shadow* style props", "issue": "Dev-only warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Several screens still use shadowColor/Offset/Opacity/Radius; React Native Web now prefers boxShadow."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth_reset.py",
+    "/app/test_reports/pytest/auth_reset.xml"
+  ],
+  "action_items": [
+    "No product fixes required - all 6 review-request items (clearer login errors, no-lockout for existing bcrypt users, durable JWT via /auth/me, forgot-password 404/200, reset-password wrong/correct/reused OTP, frontend Lupa-sandi link + step1->step2 UI) verified end-to-end.",
+    "(carry-over from iteration_4) Optional cleanup: replace deprecated pointerEvents prop with style.pointerEvents and shadow* props with boxShadow to silence React-Native-Web dev warnings.",
+    "(carry-over from iteration_4) Optional: split server.py (now 1235 lines after auth additions) - at minimum move the password-reset block (lines 319-473) and send_reset_email helper into backend/routers/auth.py."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 1235 lines (was 1049 after iteration_4). The new password-reset block is self-contained and a clean extraction target.",
+    "forgot_password returns 404 'Email tidak terdaftar.' which, while great UX, leaks whether an email is registered. Acceptable for this product but worth noting; main agent may want to switch to a generic 'Jika email terdaftar, kami telah mengirim kode' response later.",
+    "reset_password uses hmac.compare_digest on otp_hash (constant-time) and increments attempts<5, which is correct. The attempts counter is only incremented when `reset` is found; a wrong email never increments, so brute-forcing by email+random otp still consumes zero attempts - fine because every attempt still needs a valid, non-expired, unused reset doc for that email.",
+    "send_reset_email failures raise 502 and the inserted password_resets doc is NOT rolled back - a transient Resend outage could leave a reset doc that no user can consume. Low severity but worth a cleanup."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_auth_reset.py (NEW - 9 tests covering login error distinctions, register+login no-lockout, /auth/me JWT, forgot-password 404/200, reset-password wrong/correct/old-pw-fail/new-pw-ok/reuse-fail)"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 new auth-reset tests pass)",
+    "frontend": "100% of in-scope flows (Lupa sandi link visibility+navigation, forgot step1 unknown-email error, forgot step1->step2 transition with all step2 widgets rendered). Step 2 OTP submission was validated via the backend pytest (not via browser) as recommended in the review request."
+  },
+  "seed_data_creation": "Created several TEST_* users during the pytest run (TEST_bcrypt_*, TEST_reset_*, TEST_reset_e2e_*) in db.users and corresponding entries in db.password_resets. They are prefixed TEST_ for easy identification; left in place for reproducibility but can be purged with db.users.deleteMany({email: {$regex: '^test_'}}) if desired.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The OTP-recovery helper used in /app/backend/tests/test_auth_reset.py (_find_otp_by_hash) brute-forces 1,000,000 hmac-sha256 digests against db.password_resets.otp_hash using OTP_PEPPER from backend/.env. It runs in ~2-3s. For e2e reset tests, prefer registering a fresh unique email (uuid-prefixed) rather than reusing demo.tagihan@test.com or delivered@resend.dev to avoid colliding with a 'used' reset doc. Login testIDs: login-email-input / login-password-input / login-submit-button / go-forgot. Forgot testIDs: forgot-back / forgot-email-input / forgot-send-button / forgot-error / forgot-info / forgot-otp-input / forgot-password-input / forgot-reset-button / forgot-resend / forgot-go-login. Run tests with: EXPO_PUBLIC_BACKEND_URL=https://home-finance-mobile.preview.emergentagent.com MONGO_URL=mongodb://localhost:27017 DB_NAME=smart_home_finance OTP_PEPPER=shf_otp_pepper_change_in_prod_2026 pytest --override-ini='addopts=' /app/backend/tests/test_auth_reset.py -v",
+  "rca_of_issue": "Original user-reported bug (existing users getting 'email dan password salah' after an app update) is NOT reproducible on the current build: the register->login flow succeeds in 100% of attempts (test_register_then_login) and /auth/me accepts the returned JWT. The fix - stable JWT_SECRET + 30-day token lifetime - plus the new distinct login errors (404 vs 401) means (a) users whose session expired now get a specific 'Kata sandi salah' message instead of a generic 'salah', and (b) they can recover via Lupa sandi?. Backend logs show no bcrypt verification errors across the 9-test run."
+}

@@ -12,6 +12,13 @@ import calendar
 import httpx
 import jwt
 import bcrypt
+import hmac
+import hashlib
+import secrets
+import ipaddress
+from html import escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Literal
@@ -27,6 +34,14 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ.get('JWT_SECRET', 'dev-secret')
 JWT_ALG = 'HS256'
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+
+# Emergent managed email (Resend). Base URL is a constant — never read from env so
+# it survives deployment.
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ.get('EMERGENT_EMAIL_KEY', '')
+EMAIL_FROM_NAME = os.environ.get('EMAIL_FROM_NAME', 'Smart Home Finance')
+EMAIL_REPLY_TO = os.environ.get('EMAIL_REPLY_TO')
+OTP_PEPPER = os.environ.get('OTP_PEPPER', JWT_SECRET).encode('utf-8')
 
 app = FastAPI(title="Smart Home Finance API")
 api_router = APIRouter(prefix="/api")
@@ -50,7 +65,7 @@ def verify_password(pw: str, hashed: str) -> bool:
 def create_jwt(user_id: str) -> str:
     payload = {
         'user_id': user_id,
-        'exp': now_utc() + timedelta(days=7),
+        'exp': now_utc() + timedelta(days=30),
         'iat': now_utc(),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
@@ -98,6 +113,14 @@ class LoginInput(BaseModel):
 
 class SessionInput(BaseModel):
     session_id: str
+
+class ForgotInput(BaseModel):
+    email: EmailStr
+
+class ResetInput(BaseModel):
+    email: EmailStr
+    otp: str
+    new_password: str
 
 class UserOut(BaseModel):
     user_id: str
@@ -219,8 +242,12 @@ async def register(body: RegisterInput):
 @api_router.post('/auth/login', response_model=AuthResponse)
 async def login(body: LoginInput):
     user = await db.users.find_one({"email": body.email.lower()})
-    if not user or not user.get('password_hash') or not verify_password(body.password, user['password_hash']):
-        raise HTTPException(status_code=401, detail="Email atau kata sandi salah")
+    if not user:
+        raise HTTPException(status_code=404, detail="Akun belum terdaftar. Silakan daftar dulu.")
+    if not user.get('password_hash'):
+        raise HTTPException(status_code=400, detail="Akun ini terdaftar via Google. Gunakan tombol Masuk dengan Google.")
+    if not verify_password(body.password, user['password_hash']):
+        raise HTTPException(status_code=401, detail="Kata sandi salah. Gunakan 'Lupa sandi?' untuk mengatur ulang.")
     token = create_jwt(user['user_id'])
     return AuthResponse(token=token, user=UserOut(
         user_id=user['user_id'], email=user['email'], name=user['name'],
@@ -288,6 +315,162 @@ async def logout(authorization: Optional[str] = Header(None)):
         token = authorization.split(' ', 1)[1]
         await db.user_sessions.delete_one({"session_token": token})
     return {"ok": True}
+
+# ---------------- Password Reset (emailed OTP) ----------------
+def otp_digest(otp: str) -> str:
+    return hmac.new(OTP_PEPPER, otp.encode('utf-8'), hashlib.sha256).hexdigest()
+
+# --- Email safety gate (defense-in-depth, per Resend playbook) ---
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan(); scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
+
+async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    if EMAIL_REPLY_TO:
+        payload["contact_email"] = EMAIL_REPLY_TO
+    async with httpx.AsyncClient(timeout=30) as hc:
+        resp = await hc.post(
+            f"{EMAIL_BASE_URL}/api/v1/email/send",
+            headers={"X-Email-Key": EMAIL_KEY},
+            json=payload,
+        )
+    resp.raise_for_status()
+    return resp.json().get("id")
+
+async def send_reset_email(to: str, name: str, otp: str) -> None:
+    subject = "Kode Atur Ulang Kata Sandi Smart Home Finance"
+    html = (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;'
+        'font-family:Arial,sans-serif;color:#0F172A;max-width:480px">'
+        '<h2 style="margin:0 0 8px">Atur Ulang Kata Sandi</h2>'
+        f'<p style="margin:0 0 12px">Halo {escape(name)}, gunakan kode berikut untuk '
+        'mengatur ulang kata sandi akun Smart Home Finance Anda.</p>'
+        f'<p style="font-size:34px;font-weight:bold;letter-spacing:8px;color:#7C4DFF;'
+        f'margin:16px 0">{escape(otp)}</p>'
+        '<p style="margin:0 0 12px">Kode ini berlaku selama 10 menit dan hanya dapat '
+        'digunakan satu kali.</p>'
+        '<p style="font-size:12px;color:#888;margin-top:24px">Jika Anda tidak meminta ini, '
+        'abaikan email ini. Dikirim oleh Smart Home Finance. Kami tidak pernah meminta kata '
+        'sandi Anda melalui email.</p>'
+        '</td></tr></table>'
+    )
+    await send_email(to=to, subject=subject, html=html)
+
+@api_router.post('/auth/forgot-password')
+async def forgot_password(body: ForgotInput):
+    email = body.email.lower()
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="Email tidak terdaftar.")
+    if not user.get('password_hash'):
+        raise HTTPException(status_code=400, detail="Akun ini terdaftar via Google. Gunakan tombol Masuk dengan Google.")
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    now = now_utc()
+    await db.password_resets.update_many(
+        {"user_id": user['user_id'], "used": False}, {"$set": {"used": True}}
+    )
+    await db.password_resets.insert_one({
+        "user_id": user['user_id'], "email": email,
+        "otp_hash": otp_digest(otp), "created_at": now,
+        "expires_at": now + timedelta(minutes=10), "used": False, "attempts": 0,
+    })
+    try:
+        await send_reset_email(email, user.get('name') or email.split('@')[0], otp)
+    except Exception as e:
+        logger.error(f"Reset email failed: {e}")
+        raise HTTPException(status_code=502, detail="Gagal mengirim email. Coba lagi nanti.")
+    return {"ok": True, "message": "Kode verifikasi telah dikirim ke email Anda."}
+
+@api_router.post('/auth/reset-password', response_model=AuthResponse)
+async def reset_password(body: ResetInput):
+    if len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Kata sandi minimal 6 karakter")
+    user = await db.users.find_one({"email": body.email.lower()})
+    if not user:
+        raise HTTPException(status_code=400, detail="Kode tidak valid atau sudah kedaluwarsa.")
+    reset = await db.password_resets.find_one({
+        "user_id": user['user_id'], "used": False,
+        "expires_at": {"$gt": now_utc()}, "attempts": {"$lt": 5},
+    }, sort=[("created_at", -1)])
+    if not reset or not hmac.compare_digest(reset['otp_hash'], otp_digest(body.otp)):
+        if reset:
+            await db.password_resets.update_one({"_id": reset['_id']}, {"$inc": {"attempts": 1}})
+        raise HTTPException(status_code=400, detail="Kode tidak valid atau sudah kedaluwarsa.")
+    changed = await db.password_resets.update_one(
+        {"_id": reset['_id'], "used": False}, {"$set": {"used": True}}
+    )
+    if changed.modified_count != 1:
+        raise HTTPException(status_code=400, detail="Kode tidak valid atau sudah kedaluwarsa.")
+    await db.users.update_one(
+        {"user_id": user['user_id']}, {"$set": {"password_hash": hash_password(body.new_password)}}
+    )
+    token = create_jwt(user['user_id'])
+    return AuthResponse(token=token, user=UserOut(
+        user_id=user['user_id'], email=user['email'], name=user['name'],
+        picture=user.get('picture'), whatsapp=user.get('whatsapp')
+    ))
 
 # ---------------- Transactions ----------------
 def _clean_tx(doc: dict) -> dict:
@@ -1043,6 +1226,8 @@ async def startup():
     await db.bills.create_index("user_id")
     await db.shopping.create_index([("user_id", 1), ("month", 1)])
     await db.savings.create_index("user_id")
+    await db.password_resets.create_index("expires_at", expireAfterSeconds=0)
+    await db.password_resets.create_index([("user_id", 1), ("used", 1)])
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
